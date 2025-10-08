@@ -759,11 +759,15 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                     const currentQuery = searchQueries[stage.id] || '';
                     const isNewLeadColumn = stage.name === 'Novos Leads';
                     
-                    const leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 
+                    let leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 
                         !currentQuery || 
                         lead.leadName.toLowerCase().includes(currentQuery.toLowerCase()) ||
                         lead.leadPhone.includes(currentQuery)
                     );
+
+                    if (isNewLeadColumn) {
+                        leadsForColumn.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    }
 
                     return (
                         <HunterProspectColumn key={stage.id} title={stage.name} count={leadsForColumn.length}>

@@ -287,7 +287,6 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-            // @-fix: Removed invalid type argument `<number>` from `.reduce()`.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
@@ -301,7 +300,6 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return acc;
         }, {} as { [model: string]: { count: number, totalProfit: number } });
 
-        // @-fix: With `modelStats` properly typed, the `stats` parameter is now correctly inferred, and no cast is needed.
         const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, ...stats }));
         
         if (statsArray.length === 0) {

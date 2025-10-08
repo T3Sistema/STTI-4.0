@@ -631,15 +631,19 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             <div className="flex lg:overflow-x-auto lg:space-x-6 pb-4 flex-col lg:flex-row gap-6 lg:gap-0">
                  {columnsToRender.map(stage => {
                     const currentQuery = searchQueries[stage.id] || '';
-                    const leadsForStage = (categorizedLeads[stage.id] || []).filter(lead => 
+                    let leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 
                         !currentQuery ||
                         lead.leadName.toLowerCase().includes(currentQuery.toLowerCase()) ||
                         lead.leadPhone?.includes(currentQuery)
                     );
                     const isNovosLeadsColumn = stage.name === 'Novos Leads';
 
+                    if (isNovosLeadsColumn) {
+                        leadsForColumn.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    }
+
                     return (
-                        <ProspectColumn key={stage.id} title={stage.name} count={leadsForStage.length}>
+                        <ProspectColumn key={stage.id} title={stage.name} count={leadsForColumn.length}>
                              <div className="relative mb-2">
                                 <input
                                     type="text"
@@ -650,8 +654,8 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                 />
                                 <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-secondary" />
                             </div>
-                            {leadsForStage.length > 0
-                                ? leadsForStage.map((lead, index) => (
+                            {leadsForColumn.length > 0
+                                ? leadsForColumn.map((lead, index) => (
                                     <LeadCard 
                                         key={lead.id} 
                                         lead={lead} 

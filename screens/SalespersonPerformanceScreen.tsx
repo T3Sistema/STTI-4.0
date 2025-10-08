@@ -38,12 +38,11 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalSales = vehicles.length;
-    // FIX: Explicitly typing the accumulator `acc` as a number to prevent TypeScript errors in arithmetic operations.
-    const totalRevenue = vehicles.reduce((acc: number, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
-    // FIX: Explicitly typing the accumulator `acc` as a number.
-    const totalProfit = vehicles.reduce((acc: number, v) => {
+    const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
+    const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce<number>((sum, m) => sum + (m.cost || 0), 0);
+        // @-fix: Removed invalid type argument `<number>` from `.reduce()`.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
     const avgDaysToSell = totalSales > 0 ? vehicles.reduce((acc, v) => acc + getDaysInStock(v.entryDate, v.saleDate), 0) / totalSales : 0;

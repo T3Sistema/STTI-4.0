@@ -41,6 +41,8 @@ import { PlusIcon } from '../components/icons/PlusIcon';
 import AddHunterLeadForm from '../components/forms/AddHunterLeadForm';
 import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
+import { ToolboxIcon } from '../components/icons/ToolboxIcon';
+import ToolboxViewer from '../components/ToolboxViewer';
 
 
 interface SalespersonDashboardScreenProps {
@@ -129,7 +131,7 @@ const HunterActionModal: React.FC<{
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            // FIX: Using a standard for loop to iterate over the FileList, which is not a true array and can cause typing issues with for...of loops. This ensures `file` is correctly typed as a File object.
+            // @-fix: Using a standard for loop to iterate over the FileList, which is not a true array and can cause typing issues with for...of loops. This ensures `file` is correctly typed as a File object.
             for (let i = 0; i < e.target.files.length; i++) {
                 const file = e.target.files[i];
                 if (file) {
@@ -439,7 +441,7 @@ const HunterProspectColumn: React.FC<{ title: string; count: number; children: R
   };
 
 const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ user, activeCompany }) => {
-    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers, addHunterLead } = useData();
+    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers, addHunterLead, toolboxUrl } = useData();
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
@@ -451,6 +453,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         end: new Date().toISOString().slice(0, 10),
     });
     const [isAddLeadModalOpen, setAddLeadModalOpen] = useState(false);
+    const [isToolboxOpen, setIsToolboxOpen] = useState(false);
 
     const handleSearchChange = (stageId: string, query: string) => {
         setSearchQueries(prev => ({ ...prev, [stageId]: query }));
@@ -715,6 +718,15 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                         <span>Analisar Desempenho</span>
                     </button>
                     <button
+                        onClick={() => toolboxUrl && setIsToolboxOpen(true)}
+                        className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-dark-border"
+                        disabled={!toolboxUrl}
+                        title={!toolboxUrl ? "URL da ToolBox não configurada" : "Abrir ToolBox Triad3"}
+                    >
+                        <ToolboxIcon className="w-4 h-4" />
+                        <span>ToolBox Triad3</span>
+                    </button>
+                    <button
                         onClick={() => setAddLeadModalOpen(true)}
                         className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm"
                     >
@@ -823,6 +835,9 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
                     onClose={() => setAddLeadModalOpen(false)}
                 />
             </Modal>
+            {isToolboxOpen && toolboxUrl && (
+                <ToolboxViewer url={toolboxUrl} onClose={() => setIsToolboxOpen(false)} />
+            )}
             <style>{`
                 .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
                 .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
@@ -835,7 +850,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
 const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({ user, onLogout }) => {
     const { 
         companies, vehicles, teamMembers, notifications, prospectaiLeads, hunterLeads,
-        markVehicleAsSold, markNotificationAsRead, addNotification
+        markVehicleAsSold, markNotificationAsRead, addNotification, toolboxUrl,
     } = useData();
     
     // View State
@@ -846,6 +861,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
     const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
     const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+    const [isToolboxOpen, setIsToolboxOpen] = useState(false);
     
     // Filter States
     const [filters, setFilters] = useState<AdvancedFilters>({
@@ -1210,6 +1226,10 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
             <Modal isOpen={isChangePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)}>
                 <ChangePasswordForm onClose={() => setChangePasswordModalOpen(false)} />
             </Modal>
+            
+            {isToolboxOpen && toolboxUrl && (
+                <ToolboxViewer url={toolboxUrl} onClose={() => setIsToolboxOpen(false)} />
+            )}
         </div>
     );
 };

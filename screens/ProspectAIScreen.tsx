@@ -21,6 +21,8 @@ import { CalendarIcon } from '../components/icons/CalendarIcon';
 import AgendaModal from '../components/AgendaModal';
 import GoalProgressCard from '../components/GoalProgressCard';
 import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
+import { ToolboxIcon } from '../components/icons/ToolboxIcon';
+import ToolboxViewer from '../components/ToolboxViewer';
 
 interface ProspectAIScreenProps {
     onBack: () => void;
@@ -154,6 +156,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         markNotificationAsRead,
         addNotification,
         teamMembers,
+        toolboxUrl,
     } = useData();
     const [prospectingLead, setProspectingLead] = useState<ProspectAILead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
@@ -165,6 +168,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
     const [leadToReopen, setLeadToReopen] = useState<ProspectAILead | null>(null);
     const [isAgendaModalOpen, setIsAgendaModalOpen] = useState(false);
+    const [isToolboxOpen, setIsToolboxOpen] = useState(false);
 
     const [period, setPeriod] = useState<Period>('last_7_days');
     const [customRange, setCustomRange] = useState({
@@ -542,6 +546,15 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                         <ChartBarIcon className="w-4 h-4" />
                         <span>Analisar Desempenho</span>
                     </button>
+                    <button
+                        onClick={() => toolboxUrl && setIsToolboxOpen(true)}
+                        className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-dark-border"
+                        disabled={!toolboxUrl}
+                        title={!toolboxUrl ? "URL da ToolBox não configurada" : "Abrir ToolBox Triad3"}
+                    >
+                        <ToolboxIcon className="w-4 h-4" />
+                        <span>ToolBox Triad3</span>
+                    </button>
                     <NotificationBell
                         notifications={userNotifications}
                         onMarkAsRead={markNotificationAsRead}
@@ -733,6 +746,10 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             </Modal>
 
             <AgendaModal isOpen={isAgendaModalOpen} onClose={() => setIsAgendaModalOpen(false)} appointments={farmAppointments} />
+
+            {isToolboxOpen && toolboxUrl && (
+                <ToolboxViewer url={toolboxUrl} onClose={() => setIsToolboxOpen(false)} />
+            )}
 
             <style>{`
                 .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }

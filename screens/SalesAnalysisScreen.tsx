@@ -72,12 +72,11 @@ const getDateRange = (period: Period) => {
 
 const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalSales = vehicles.length;
-    // FIX: Explicitly typing the accumulator `acc` as a number to prevent TypeScript errors in arithmetic operations.
-    const totalRevenue = vehicles.reduce((acc: number, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
-    // FIX: Explicitly typing the accumulator `acc` as a number.
-    const totalProfit = vehicles.reduce((acc: number, v) => {
+    const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
+    const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce<number>((sum, m) => sum + (m.cost || 0), 0);
+        // @-fix: Corrected the .reduce() syntax to prevent arithmetic type errors.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
     const averageProfit = totalSales > 0 ? totalProfit / totalSales : 0;
@@ -286,10 +285,10 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return defaultResult;
         }
 
-        // FIX: Explicitly type the accumulator to ensure `stats` is correctly typed later.
-        const modelStats = filteredVehicles.reduce((acc: { [model: string]: { count: number, totalProfit: number } }, v) => {
+        const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce<number>((sum, m) => sum + (m.cost || 0), 0);
+            // @-fix: Removed invalid type argument `<number>` from `.reduce()`.
+            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
 
@@ -300,9 +299,9 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             acc[fullName].totalProfit += profit;
             
             return acc;
-        }, {});
+        }, {} as { [model: string]: { count: number, totalProfit: number } });
 
-        // FIX: With `modelStats` properly typed, the `stats` parameter is now correctly inferred, and no cast is needed.
+        // @-fix: With `modelStats` properly typed, the `stats` parameter is now correctly inferred, and no cast is needed.
         const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, ...stats }));
         
         if (statsArray.length === 0) {

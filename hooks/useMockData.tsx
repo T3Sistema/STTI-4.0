@@ -21,6 +21,7 @@ interface DataContextType {
     gruposEmpresariais: GrupoEmpresarial[];
     monitorSettings: MonitorSettings | null;
     monitorChatHistory: MonitorChatMessage[];
+    toolboxUrl: string | null;
     updateCompanyStatus: (id: string, isActive: boolean) => Promise<void>;
     addCompany: (companyData: Omit<Company, 'id' | 'isActive' | 'monthlySalesGoal' | 'pipeline_stages'>, password: string) => Promise<void>;
     updateCompany: (company: Company) => Promise<void>;
@@ -49,7 +50,7 @@ interface DataContextType {
     markAdminNotificationAsRead: (id: string) => void;
     logActivity: (type: LogType, description: string, details?: { companyId?: string; userId?: string; }) => Promise<void>;
     updateUserPassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
-    updateAdminPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+    updateAdminPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string; }>;
     updateGrupoUserPassword: (groupId: string, currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string; }>;
     updateGrupoUserProfile: (groupId: string, data: { bannerUrl: string; responsiblePhotoUrl: string; }) => Promise<GrupoEmpresarial | null>;
     updateProspectLeadStatus: (leadId: string, newStageId: string, details?: Record<string, any>) => Promise<void>;
@@ -290,6 +291,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [gruposEmpresariais, setGruposEmpresariais] = useState<GrupoEmpresarial[]>([]);
     const [monitorSettings, setMonitorSettings] = useState<MonitorSettings | null>(null);
     const [monitorChatHistory, setMonitorChatHistory] = useState<MonitorChatMessage[]>([]);
+    const [toolboxUrl, setToolboxUrl] = useState<string | null>(null);
 
     // Client-side only state for now
     const [deactivatedAdVehicleIds, setDeactivatedAdVehicleIds] = useState<Set<string>>(new Set());
@@ -331,6 +333,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     { data: gruposData, error: gruposError },
                     { data: monitorSettingsData, error: monitorSettingsError },
                     { data: monitorChatHistoryData, error: monitorChatHistoryError },
+                    { data: toolboxConfigData, error: toolboxConfigError },
                 ] = await Promise.all([
                     supabase.from('companies').select('*').order('created_at', { ascending: true }),
                     supabase.from('team_members').select('*'), // Fetch all fields including settings
@@ -344,6 +347,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     supabase.from('grupos_empresariais').select('*').order('created_at', { ascending: true }),
                     supabase.from('monitor_settings').select('*').single(),
                     supabase.from('monitor_chat_history').select('*').order('created_at', { ascending: true }),
+                    supabase.from('toolbox_config').select('url').single(),
                 ]);
 
                 if (companiesError) throw companiesError;
@@ -358,6 +362,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (gruposError) throw gruposError;
                 if (monitorSettingsError) throw monitorSettingsError;
                 if (monitorChatHistoryError) throw monitorChatHistoryError;
+                if (toolboxConfigError && toolboxConfigError.code !== 'PGRST116') {
+                    console.error("Error fetching toolbox config:", toolboxConfigError);
+                }
                 
                 // MAP DB snake_case to client camelCase
                 const mappedCompanies: Company[] = (companiesData || []).map(mapCompanyFromDB);
@@ -384,6 +391,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setGruposEmpresariais(mappedGrupos || []);
                 setMonitorSettings(monitorSettingsData || null);
                 setMonitorChatHistory(monitorChatHistoryData || []);
+                setToolboxUrl(toolboxConfigData?.url || null);
                 
                 const enrichedLogs = (logsData || []).map((log: any) => ({
                     ...log,
@@ -482,6 +490,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setMonitorSettings(payload.new as MonitorSettings);
              }).subscribe();
 
+        const toolboxSubscription = supabase.channel('realtime:toolbox_config')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'toolbox_config' }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setToolboxUrl((payload.new as { url: string }).url);
+                } else if (payload.eventType === 'DELETE') {
+                    setToolboxUrl(null);
+                }
+            }).subscribe();
+
         // Cleanup subscriptions on component unmount
         return () => {
           supabase.removeChannel(teamMemberSubscription);
@@ -495,6 +512,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           supabase.removeChannel(maintenanceSubscription);
           supabase.removeChannel(logsSubscription);
           supabase.removeChannel(monitorSettingsSubscription);
+          supabase.removeChannel(toolboxSubscription);
         };
     }, []);
 
@@ -1689,6 +1707,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         gruposEmpresariais,
         monitorSettings,
         monitorChatHistory,
+        toolboxUrl,
         updateCompanyStatus,
         addCompany,
         updateCompany,

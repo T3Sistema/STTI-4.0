@@ -186,7 +186,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            // FIX: Iterate directly over FileList to ensure correct typing for 'file'.
+            // @-fix: Iterate directly over FileList using Array.from() to ensure correct typing for 'file'.
             for (const file of Array.from(e.target.files)) {
                 const reader = new FileReader();
                 reader.onloadend = () => {

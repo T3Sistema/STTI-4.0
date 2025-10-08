@@ -33,6 +33,8 @@ import HunterSettingsScreen from './HunterSettingsScreen';
 import CompanyProspectPerformanceScreen from './CompanyProspectPerformanceScreen';
 import { BullseyeIcon } from '../components/icons/BullseyeIcon';
 import GoalSettingsScreen from './GoalSettingsScreen';
+import { ToolboxIcon } from '../components/icons/ToolboxIcon';
+import ToolboxViewer from '../components/ToolboxViewer';
 
 
 interface DashboardScreenProps {
@@ -49,7 +51,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
         deleteVehicle, deleteTeamMember,
         markVehicleAsSold, assignSalesperson,
         toggleVehiclePriority, addNotification,
-        markNotificationAsRead
+        markNotificationAsRead,
+        toolboxUrl,
     } = useData();
     
     // View State
@@ -65,6 +68,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const [isMarketingModalOpen, setMarketingModalOpen] = useState(false);
     const [vehicleToAssign, setVehicleToAssign] = useState<Vehicle | null>(null);
     const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+    const [isToolboxOpen, setIsToolboxOpen] = useState(false);
 
     // Data States for CRUD
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | undefined>(undefined);
@@ -494,6 +498,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                             <span>Análise de Prospecção</span>
                         </button>
                         <button
+                            onClick={() => toolboxUrl && setIsToolboxOpen(true)}
+                            className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-dark-border"
+                            disabled={!toolboxUrl}
+                            title={!toolboxUrl ? "URL da ToolBox não configurada" : "Abrir ToolBox Triad3"}
+                        >
+                            <ToolboxIcon className="w-4 h-4" />
+                            <span>ToolBox Triad3</span>
+                        </button>
+                        <button
                             onClick={() => setProspectAIView('settings_choice')}
                             className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm"
                         >
@@ -743,6 +756,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                     imageUrl={expandedImageUrl}
                     onClose={() => setExpandedImageUrl(null)}
                 />
+            )}
+            {isToolboxOpen && toolboxUrl && (
+                <ToolboxViewer url={toolboxUrl} onClose={() => setIsToolboxOpen(false)} />
             )}
         </div>
     );

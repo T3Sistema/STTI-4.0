@@ -68,13 +68,10 @@ const calculatePerformanceMetrics = (leads: ProspectAILead[], companyPipeline: P
     const allFeedbacks = leads
         .flatMap(l => {
             if (!l.feedback) return [];
-            const stageName = stageMap[l.stage_id] || 'Desconhecido';
-            let status = stageName;
-            if (stageName === 'Finalizados') {
-                if (l.outcome === 'convertido') status = 'Finalizado - Convertido';
-                else if (l.outcome === 'nao_convertido') status = 'Finalizado - Não Convertido';
-            }
-            return l.feedback.map(f => ({ ...f, leadName: l.leadName, leadStatus: status, lead: l }));
+            return l.feedback.map(f => {
+                const stageName = stageMap[f.stageId || l.stage_id] || 'Desconhecido';
+                return { ...f, leadName: l.leadName, leadStatus: stageName, lead: l };
+            });
         })
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -406,6 +403,11 @@ const SalespersonProspectPerformanceScreen: React.FC<PerformanceScreenProps> = (
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs text-dark-secondary">Lead: <span className="font-semibold text-dark-text">{fb.leadName}</span></p>
                                             <p className="text-sm text-dark-text mt-1 truncate" title={fb.text}>{fb.text}</p>
+                                            {fb.leadStatus && fb.leadStatus !== 'Desconhecido' && (
+                                                <p className="text-xs font-semibold text-cyan-400 mt-1.5">
+                                                    Na etapa: {fb.leadStatus}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex-shrink-0 text-right">
                                             <p className="text-xs text-dark-secondary">

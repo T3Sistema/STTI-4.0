@@ -641,7 +641,10 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                                 const events: any[] = [];
                                 events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
                                 if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
-                                if (lead.feedback) lead.feedback.forEach(feedbackItem => events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> }));
+                                if (lead.feedback) lead.feedback.forEach(feedbackItem => {
+                                    const stage = pipelineStages.find(s => s.id === feedbackItem.stageId);
+                                    events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, stageName: stage ? stage.name : null, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> });
+                                });
                                 if (lead.details?.reassigned_at) {
                                     const from = allSalespeople.find(s => s.id === lead.details.reassigned_from)?.name || 'Desconhecido';
                                     const to = allSalespeople.find(s => s.id === lead.details.reassigned_to)?.name || 'Desconhecido';
@@ -674,11 +677,20 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                                                     <div className="pl-4">
                                                         <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                                                         <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
-                                                        {durationString && (
-                                                            <p className="text-xs font-semibold text-amber-400 mt-1.5 flex items-center gap-1.5">
-                                                                <ClockIcon className="w-3.5 h-3.5" />
-                                                                <span>{`Após ${durationString}`}</span>
-                                                            </p>
+                                                        {(durationString || (event.type === 'feedback' && event.stageName)) && (
+                                                            <div className="flex items-center gap-4 mt-1.5">
+                                                                {durationString && (
+                                                                    <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                                                                        <ClockIcon className="w-3.5 h-3.5" />
+                                                                        <span>{`Após ${durationString}`}</span>
+                                                                    </p>
+                                                                )}
+                                                                {event.type === 'feedback' && event.stageName && (
+                                                                    <p className="text-xs font-semibold text-cyan-400">
+                                                                        na etapa: {event.stageName}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         )}
                                                         {event.type === 'feedback' && event.images && event.images.length > 0 && (
                                                             <div className="flex flex-wrap gap-1 mt-2">

@@ -237,6 +237,7 @@ export interface ProspectAILead {
     text: string;
     images?: string[]; // URLs of uploaded images
     createdAt: string;
+    stageId?: string;
   }[];
   prospected_at?: string;
   last_feedback_at?: string;
@@ -252,7 +253,7 @@ export interface HunterLead {
   source: 'Base da Empresa' | 'Base Triad3' | 'Captado pelo Vendedor';
   stage_id: string;
   outcome?: 'convertido' | 'nao_convertido' | null;
-  feedback: { text: string; createdAt: string; images?: string[] }[];
+  feedback: { text: string; createdAt: string; images?: string[]; stageId?: string; }[];
   lastActivity?: string;
   prospected_at?: string;
   appointment_at?: string;

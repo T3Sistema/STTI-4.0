@@ -38,8 +38,19 @@ const calculatePerformanceMetrics = (leads: HunterLead[], companyPipeline: Pipel
 
     const avgClosingTime = closingTimes.length > 0 ? closingTimes.reduce((a, b) => a + b, 0) / closingTimes.length : 0;
     
+    const stageMap = companyPipeline.reduce((acc, stage) => {
+        acc[stage.id] = stage.name;
+        return acc;
+    }, {} as Record<string, string>);
+
     const allFeedbacks = leads
-        .flatMap(l => l.feedback ? l.feedback.map(f => ({ ...f, lead: l })) : [])
+        .flatMap(l => {
+            if (!l.feedback) return [];
+            return l.feedback.map(f => {
+                const stageName = stageMap[f.stageId || l.stage_id] || 'Desconhecido';
+                return { ...f, lead: l, leadStatus: stageName };
+            });
+        })
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
 
@@ -355,6 +366,11 @@ const SalespersonHunterPerformanceScreen: React.FC<PerformanceScreenProps> = ({ 
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs text-dark-secondary">Lead: <span className="font-semibold text-dark-text">{fb.lead.leadName}</span></p>
                                             <p className="text-sm text-dark-text mt-1 truncate" title={fb.text}>{fb.text}</p>
+                                            {fb.leadStatus && fb.leadStatus !== 'Desconhecido' && (
+                                                <p className="text-xs font-semibold text-cyan-400 mt-1.5">
+                                                    Na etapa: {fb.leadStatus}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex-shrink-0 text-right">
                                             <p className="text-xs text-dark-secondary">

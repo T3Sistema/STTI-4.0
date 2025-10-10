@@ -1302,7 +1302,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             const { data: currentLeadData, error: fetchError } = await supabase
                 .from('prospectai')
-                .select('feedback')
+                .select('feedback, stage_id')
                 .eq('id', leadId)
                 .single();
 
@@ -1313,6 +1313,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 text: feedbackText,
                 images: imageUrls,
                 createdAt: new Date().toISOString(),
+                stageId: currentLeadData.stage_id,
             };
 
             const updatedFeedback = [...currentFeedback, newFeedback];
@@ -1712,6 +1713,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 text: feedbackText,
                 images: imageUrls,
                 createdAt: new Date().toISOString(),
+                stageId: lead.stage_id,
             };
             
             const updatedFeedback = [...(lead.feedback || []), newFeedbackEntry];

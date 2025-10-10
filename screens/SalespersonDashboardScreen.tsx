@@ -13,7 +13,7 @@ import SalespersonPerformanceScreen from './SalespersonPerformanceScreen';
 import { ChartBarIcon } from '../components/icons/ChartBarIcon';
 import { CarIcon } from '../components/icons/CarIcon';
 import FilterBar, { AdvancedFilters } from '../components/FilterBar';
-import { getDaysInStock, formatTimeUntil } from '../utils/dateUtils';
+import { getDaysInStock, formatTimeUntil, formatDuration } from '../utils/dateUtils';
 import Modal from '../components/Modal';
 import UserProfileForm from '../components/forms/UserProfileForm';
 import ChangePasswordForm from '../components/forms/ChangePasswordForm';
@@ -43,6 +43,8 @@ import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 import { ToolboxIcon } from '../components/icons/ToolboxIcon';
 import ToolboxViewer from '../components/ToolboxViewer';
+import { BullseyeIcon } from '../components/icons/BullseyeIcon';
+import { ClockIcon } from '../components/icons/ClockIcon';
 
 
 interface SalespersonDashboardScreenProps {
@@ -104,7 +106,24 @@ const HunterProspectCard: React.FC<{ title: string; count: number; color: string
     </Card>
 );
 
-const HunterActionModal: React.FC<{
+const generateHunterLeadEvents = (lead: HunterLead, pipeline: PipelineStage[]) => {
+    const events: any[] = [];
+    events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
+    if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
+    if (lead.feedback) lead.feedback.forEach(feedbackItem => {
+        const stage = pipeline.find(s => s.id === feedbackItem.stageId);
+        events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, stageName: stage ? stage.name : null, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> });
+    });
+    if (lead.outcome && lead.lastActivity) {
+        const outcomeText = lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido';
+        const icon = lead.outcome === 'convertido' ? <CheckCircleIcon className="w-4 h-4 text-green-400" /> : <XIcon className="w-4 h-4 text-red-400" />;
+        events.push({ type: 'finalization', date: new Date(lead.lastActivity), text: `Lead finalizado - ${outcomeText}`, icon: icon });
+    }
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return events;
+};
+
+const HunterLeadHistoryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     lead: HunterLead;
@@ -117,6 +136,9 @@ const HunterActionModal: React.FC<{
     const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
     const [appointmentDate, setAppointmentDate] = useState('');
     const [appointmentTime, setAppointmentTime] = useState('');
+    const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+
+    const events = useMemo(() => generateHunterLeadEvents(lead, stages), [lead, stages]);
     
     const currentStage = stages.find(s => s.id === lead.stage_id);
     const nextStage = stages.find(s => s.stageOrder > (currentStage?.stageOrder || 0) && !s.isFixed);
@@ -182,20 +204,73 @@ const HunterActionModal: React.FC<{
     return (
         <>
             <Modal isOpen={isOpen && !isAppointmentModalOpen} onClose={onClose}>
-                 <div className="p-2 space-y-4">
-                    <h2 className="text-2xl font-bold text-center">Registrar Ação</h2>
-                    <div className="p-4 bg-dark-background rounded-lg border border-dark-border text-center">
-                        <h3 className="text-2xl font-bold text-dark-primary">{lead.leadName}</h3>
-                        <p className="text-dark-secondary mt-1">{lead.leadPhone}</p>
+                <div className="p-2 space-y-4">
+                    <h2 className="text-2xl font-bold text-center">Histórico do Lead: {lead.leadName}</h2>
+                    <div className="p-2 bg-dark-background rounded-lg border border-dark-border text-center">
+                        <p className="text-dark-secondary">{lead.leadPhone}</p>
                     </div>
-                     <div>
+
+                    <div className="max-h-60 overflow-y-auto pr-2 my-4 border-y border-dark-border py-4">
+                        <div className="relative pl-5 py-2">
+                            <div className="absolute left-2.5 top-0 h-full w-0.5 bg-dark-border"></div>
+                            {events.map((event, eventIndex) => {
+                                let durationString: string | null = null;
+                                if (eventIndex > 0) {
+                                    const prevEvent = events[eventIndex - 1];
+                                    const durationMs = event.date.getTime() - prevEvent.date.getTime();
+                                    if (durationMs >= 1000) {
+                                        durationString = formatDuration(durationMs);
+                                    }
+                                }
+                                return (
+                                    <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
+                                        <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
+                                            {event.icon}
+                                        </div>
+                                        <div className="pl-4">
+                                            <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                            <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
+                                            {(durationString || (event.type === 'feedback' && event.stageName)) && (
+                                                <div className="flex items-center gap-4 mt-1.5">
+                                                    {durationString && (
+                                                        <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                                                            <ClockIcon className="w-3.5 h-3.5" />
+                                                            <span>{`Após ${durationString}`}</span>
+                                                        </p>
+                                                    )}
+                                                    {event.type === 'feedback' && event.stageName && (
+                                                        <p className="text-xs font-semibold text-cyan-400">
+                                                            na etapa: {event.stageName}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {event.type === 'feedback' && event.images && event.images.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {event.images.map((img: string, i: number) => (
+                                                        <button key={i} onClick={() => setExpandedImageUrl(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
+                                                            <img src={img} alt="feedback" className="w-full h-full object-cover"/>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <h3 className="text-xl font-bold text-center">Registrar Ação</h3>
+
+                    <div>
                         <label className="flex items-center gap-2 text-sm font-medium text-dark-secondary mb-2">
                             <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4" />
                             Feedback do Contato (Obrigatório)
                         </label>
                         <textarea value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows={4} className="w-full px-3 py-2 text-sm bg-dark-background border border-dark-border rounded-md" placeholder="Descreva o resultado do contato..."/>
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor={`hunter-image-upload-${lead.id}`} className="w-full cursor-pointer text-center bg-dark-background hover:bg-dark-border/50 border border-dark-border text-dark-text font-medium py-2 px-3 rounded-md transition-colors text-sm flex items-center justify-center gap-2">
                             <UploadIcon className="w-4 h-4"/>
                             <span>Adicionar Imagens (Print)</span>
@@ -214,7 +289,7 @@ const HunterActionModal: React.FC<{
                             ))}
                         </div>
                     )}
-                     <div className="pt-4 border-t border-dark-border">
+                    <div className="pt-4 border-t border-dark-border">
                         <h4 className="text-center text-sm font-bold text-dark-secondary mb-3">Próximas Ações</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {nextStage && (
@@ -234,9 +309,10 @@ const HunterActionModal: React.FC<{
                         </div>
                     </div>
                 </div>
+                {expandedImageUrl && <ImageLightbox imageUrl={expandedImageUrl} onClose={() => setExpandedImageUrl(null)} />}
                 <style>{`.action-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; font-bold; padding: 1rem 0.5rem; border-radius: 0.5rem; transition: background-color 0.2s; text-align: center; opacity: 1; } .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }`}</style>
             </Modal>
-             <Modal isOpen={isAppointmentModalOpen} onClose={() => setIsAppointmentModalOpen(false)}>
+            <Modal isOpen={isAppointmentModalOpen} onClose={() => setIsAppointmentModalOpen(false)}>
                 <form onSubmit={handleConfirmAppointment} className="space-y-4">
                     <h2 className="text-2xl font-bold text-center">Agendar Atendimento</h2>
                     <p className="text-center text-dark-secondary">Selecione a data e hora para o lead <strong className="text-dark-text">{lead.leadName}</strong>.</p>
@@ -289,8 +365,6 @@ const HunterLeadCard: React.FC<{
         if (isDisabled) return;
         if (isNewLead) {
             onStartProspecting();
-        } else if (isFinalized) {
-            onReopen?.();
         } else {
             onOpenActions();
         }
@@ -383,7 +457,7 @@ const HunterLeadCard: React.FC<{
                         </div>
                     </div>
                 </div>
-                {!isNewLead && !isFinalized && (
+                {!isNewLead && (
                     <div className="space-y-3 pt-3 border-t border-dark-border">
                         <div className="flex items-center justify-between gap-2 text-sm text-dark-secondary">
                             <div className="flex items-center gap-2">
@@ -395,23 +469,20 @@ const HunterLeadCard: React.FC<{
                                 {isCopied ? 'Copiado!' : 'Copiar'}
                             </button>
                         </div>
-                        {lastFeedback && (
+                        {lastFeedback && !isFinalized && (
                             <div className={`p-2 rounded-lg border text-xs ${feedbackColorClasses[sentiment]}`}>
                                 <p className="font-bold uppercase tracking-wider mb-1 text-[10px]">Último Feedback:</p>
                                 <p className="italic text-white/90 truncate text-sm">"{lastFeedback.text}"</p>
                             </div>
                         )}
+                        {isFinalized && (
+                            <div className="text-center">
+                                <p className={`text-sm font-bold ${lead.outcome === 'convertido' ? 'text-green-400' : 'text-red-400'}`}>
+                                {lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido'}
+                                </p>
+                            </div>
+                        )}
                     </div>
-                )}
-                 {isFinalized && !isNewLead && (
-                     <div className="pt-3 border-t border-dark-border text-center space-y-2">
-                         <p className={`text-sm font-bold ${lead.outcome === 'convertido' ? 'text-green-400' : 'text-red-400'}`}>
-                            {lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido'}
-                         </p>
-                         <button className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2 px-3 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors">
-                             <ArrowPathIcon className="w-4 h-4" /> Reabrir Atendimento
-                         </button>
-                     </div>
                 )}
             </div>
         </Card>
@@ -803,7 +874,7 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
             </div>
 
             {selectedLead && (
-                <HunterActionModal 
+                <HunterLeadHistoryModal 
                     isOpen={!!selectedLead}
                     onClose={() => setSelectedLead(null)}
                     lead={selectedLead}

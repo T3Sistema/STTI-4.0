@@ -51,6 +51,10 @@ interface DataContextType {
     logActivity: (type: LogType, description: string, details?: { companyId?: string; userId?: string; }) => Promise<void>;
     updateUserPassword: (userId: string, currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
     updateAdminPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string; }>;
+    requestPasswordReset: (email: string) => Promise<{ success: boolean; message?: string; }>;
+    resetPasswordWithToken: (token: string, newPassword: string) => Promise<{ success: boolean; message: string; }>;
+    getN8nWebhook: (name: string) => Promise<string | null>;
+    updateN8nWebhook: (name: string, url: string) => Promise<void>;
     updateGrupoUserPassword: (groupId: string, currentPassword: string, newPassword: string) => Promise<{ success: boolean; message: string; }>;
     updateGrupoUserProfile: (groupId: string, data: { bannerUrl: string; responsiblePhotoUrl: string; }) => Promise<GrupoEmpresarial | null>;
     updateProspectLeadStatus: (leadId: string, newStageId: string, details?: Record<string, any>) => Promise<void>;
@@ -1072,6 +1076,50 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: true, message: 'Senha alterada com sucesso!' };
     };
 
+    const requestPasswordReset = async (email: string): Promise<{ success: boolean, message?: string }> => {
+        const { data, error } = await supabase.rpc('handle_password_reset', { user_email: email });
+
+        if (error) {
+            console.error('Error calling password reset function:', error);
+            return { success: false, message: 'Erro ao processar a solicitação. Tente novamente mais tarde.' };
+        }
+        return { success: true };
+    };
+
+    const resetPasswordWithToken = async (token: string, newPassword: string): Promise<{ success: boolean, message: string }> => {
+        const { data, error } = await supabase.rpc('reset_password_with_token', {
+            p_token: token,
+            p_new_password: newPassword,
+        });
+    
+        if (error) {
+            console.error('Error calling reset password function:', error);
+            return { success: false, message: 'Ocorreu um erro ao tentar redefinir a senha. Tente novamente.' };
+        }
+        
+        return data;
+    };
+
+    const getN8nWebhook = async (name: string): Promise<string | null> => {
+        const { data, error } = await supabase.from('n8n_webhooks').select('url').eq('webhook_name', name).single();
+        if (error || !data) {
+            // It's not an error if it doesn't exist, just return null
+            if (error && error.code !== 'PGRST116') {
+                 console.error('Error fetching webhook:', error);
+            }
+            return null;
+        }
+        return data.url;
+    };
+
+    const updateN8nWebhook = async (name: string, url: string): Promise<void> => {
+        const { error } = await supabase.from('n8n_webhooks').upsert({ webhook_name: name, url }, { onConflict: 'webhook_name' });
+        if (error) {
+            console.error('Error updating webhook:', error);
+            throw new Error('Não foi possível salvar o webhook.');
+        }
+    };
+
     const addAdminUser = async (userData: Omit<AdminUser, 'id'> & { password?: string }) => {
         const { data, error } = await supabase.rpc('create_admin_user', {
             new_name: userData.name,
@@ -1761,6 +1809,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logActivity,
         updateUserPassword,
         updateAdminPassword,
+        requestPasswordReset,
+        resetPasswordWithToken,
+        getN8nWebhook,
+        updateN8nWebhook,
         updateGrupoUserPassword,
         updateGrupoUserProfile,
         updateProspectLeadStatus,

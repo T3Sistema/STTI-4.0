@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import AdminScreen from './screens/AdminScreen';
@@ -19,6 +15,7 @@ import GruposEmpresariaisScreen from './screens/GruposEmpresariaisScreen';
 import GrupoUserDashboardScreen from './screens/GrupoUserDashboardScreen';
 import MonitorChatWidget from './components/MonitorChatWidget';
 import MonitorSettingsScreen from './screens/MonitorSettingsScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 
 // Helper to map DB snake_case to client camelCase for GrupoEmpresarial
 // This avoids the 'includes' of undefined error by ensuring companyIds exists.
@@ -244,6 +241,16 @@ const App: React.FC = () => {
     document.documentElement.classList.add('dark');
   }, []);
 
+  // Roteamento simples baseado no path da URL
+  const path = window.location.pathname;
+
+  if (path === '/reset-password') {
+      return (
+          <DataProvider>
+              <ResetPasswordScreen />
+          </DataProvider>
+      );
+  }
 
   return (
     <DataProvider>

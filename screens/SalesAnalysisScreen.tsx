@@ -287,7 +287,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc: { [model: string]: { count: number, totalProfit: number } }, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-// @-fix: Added initial value `0` to the reduce function to prevent arithmetic errors on empty maintenance arrays.
+            // @-fix: Added initial value `0` to the reduce function to prevent arithmetic errors on empty maintenance arrays.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum: number, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
@@ -301,7 +301,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return acc;
         }, {} as { [model: string]: { count: number, totalProfit: number } });
 
-// @-fix: Cast `stats` to a known object type to resolve spread operator error with `unknown` type.
+        // @-fix: Cast `stats` to a known object type to resolve spread operator error with `unknown` type.
         const statsArray = Object.entries(modelStats).map(([model, stats]) => ({ model, ...(stats as { count: number; totalProfit: number }) }));
         
         if (statsArray.length === 0) {

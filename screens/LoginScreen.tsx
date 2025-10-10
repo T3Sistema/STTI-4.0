@@ -7,6 +7,7 @@ import InfoModal from '../components/InfoModal';
 import { EyeIcon } from '../components/icons/EyeIcon';
 import { EyeOffIcon } from '../components/icons/EyeOffIcon';
 import { supabase } from '../utils/supabase';
+import { KeyIcon } from '../components/icons/KeyIcon';
 
 interface LoginScreenProps {
   onLogin: (role: UserRole, user?: TeamMember | AdminUser | GrupoEmpresarial) => void;
@@ -23,7 +24,7 @@ const defaultSalespersonSettings: SalespersonProspectAISettings = {
     },
 };
 
-const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminUser | GrupoEmpresarial) => void; onSwitchToRegister: () => void; }> = ({ onLogin, onSwitchToRegister }) => {
+const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminUser | GrupoEmpresarial) => void; onSwitchView: (view: 'register' | 'forgot_password') => void; }> = ({ onLogin, onSwitchView }) => {
     const { companies, adminUsers } = useData();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -161,6 +162,11 @@ const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminU
                         </button>
                     </div>
                 </div>
+                <div className="text-right">
+                    <button type="button" onClick={() => onSwitchView('forgot_password')} className="text-sm font-medium text-dark-primary hover:underline">
+                        Esqueceu sua senha?
+                    </button>
+                </div>
                 {error && <p className="text-center text-sm text-red-400">{error}</p>}
                 <div>
                     <button 
@@ -174,7 +180,7 @@ const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminU
             </form>
             <p className="text-center text-sm text-dark-secondary">
                 Não tem conta?{' '}
-                <button onClick={onSwitchToRegister} className="font-medium text-dark-primary hover:underline">
+                <button onClick={() => onSwitchView('register')} className="font-medium text-dark-primary hover:underline">
                     Cadastre-se
                 </button>
             </p>
@@ -182,7 +188,79 @@ const LoginForm: React.FC<{ onLogin: (role: UserRole, user?: TeamMember | AdminU
     )
 }
 
-const RegisterForm: React.FC<{ onSwitchToLogin: () => void; }> = ({ onSwitchToLogin }) => {
+const ForgotPasswordForm: React.FC<{ onSwitchView: (view: 'login') => void; }> = ({ onSwitchView }) => {
+    const { requestPasswordReset } = useData();
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError('');
+        setMessage('');
+
+        try {
+            const result = await requestPasswordReset(email);
+            if (result.success) {
+                setMessage('Se este e-mail estiver cadastrado em nosso sistema, você receberá as instruções para redefinir sua senha em breve.');
+            } else {
+                setError(result.message || 'Ocorreu um erro. Tente novamente.');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Ocorreu um erro de comunicação. Tente novamente.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <>
+            <div className="text-center space-y-4">
+                <KeyIcon className="w-16 h-16 mx-auto text-dark-primary" />
+                <h2 className="text-3xl font-extrabold text-dark-text">Recuperar Senha</h2>
+                <p className="mt-2 text-dark-secondary">Digite seu e-mail para receber o link de redefinição.</p>
+            </div>
+            <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                 {!message && (
+                    <input
+                        id="email-recovery"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        className="relative block w-full px-4 py-3 border border-dark-border placeholder-dark-secondary text-dark-text bg-dark-background rounded-lg focus:outline-none focus:ring-2 focus:ring-dark-primary sm:text-sm transition-colors"
+                        placeholder="Seu e-mail de acesso"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                )}
+                {error && <p className="text-center text-sm text-red-400">{error}</p>}
+                {message && <p className="text-center text-sm text-green-400 p-3 bg-green-500/10 rounded-lg">{message}</p>}
+                 {!message && (
+                    <div>
+                        <button 
+                            type="submit" 
+                            disabled={isLoading}
+                            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-lg text-dark-background bg-dark-primary hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-dark-primary transition-all duration-200 disabled:opacity-50"
+                        >
+                            {isLoading ? 'Enviando...' : 'Enviar Link'}
+                        </button>
+                    </div>
+                )}
+            </form>
+            <p className="text-center text-sm text-dark-secondary">
+                Lembrou a senha?{' '}
+                <button onClick={() => onSwitchView('login')} className="font-medium text-dark-primary hover:underline">
+                    Voltar para o login
+                </button>
+            </p>
+        </>
+    );
+};
+
+const RegisterForm: React.FC<{ onSwitchView: (view: 'login') => void; }> = ({ onSwitchView }) => {
     const { addCompany } = useData();
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [isInfoModalOpen, setInfoModalOpen] = useState(false);
@@ -252,7 +330,7 @@ const RegisterForm: React.FC<{ onSwitchToLogin: () => void; }> = ({ onSwitchToLo
     
     const handleCloseModal = () => {
         setInfoModalOpen(false);
-        onSwitchToLogin();
+        onSwitchView('login');
     };
 
     return (
@@ -298,7 +376,7 @@ const RegisterForm: React.FC<{ onSwitchToLogin: () => void; }> = ({ onSwitchToLo
             </form>
             <p className="text-center text-sm text-dark-secondary">
                 Já tem uma conta?{' '}
-                <button onClick={onSwitchToLogin} className="font-medium text-dark-primary hover:underline">
+                <button onClick={() => onSwitchView('login')} className="font-medium text-dark-primary hover:underline">
                     Faça login
                 </button>
             </p>
@@ -334,16 +412,25 @@ const RegisterForm: React.FC<{ onSwitchToLogin: () => void; }> = ({ onSwitchToLo
 
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-    const [isRegistering, setIsRegistering] = useState(false);
+    const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
+
+    const renderContent = () => {
+        switch (view) {
+            case 'register':
+                return <RegisterForm onSwitchView={setView} />;
+            case 'forgot_password':
+                return <ForgotPasswordForm onSwitchView={setView} />;
+            case 'login':
+            default:
+                return <LoginForm onLogin={onLogin} onSwitchView={setView} />;
+        }
+    };
 
     return (
         <div className="min-h-screen flex flex-col bg-dark-background">
             <main className="flex-grow flex items-center justify-center px-4">
                 <div className="w-full max-w-xs sm:max-w-lg p-6 sm:p-8 space-y-6 bg-dark-card rounded-3xl shadow-2xl shadow-black/20 border border-dark-border/50 animate-fade-in">
-                    {isRegistering 
-                        ? <RegisterForm onSwitchToLogin={() => setIsRegistering(false)} /> 
-                        : <LoginForm onLogin={onLogin} onSwitchToRegister={() => setIsRegistering(true)} />
-                    }
+                    {renderContent()}
                 </div>
             </main>
             <footer className="w-full text-center py-4 text-dark-secondary text-xs border-t border-dark-border/20 bg-dark-card/20 backdrop-blur-sm">

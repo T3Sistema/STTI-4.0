@@ -4,13 +4,15 @@ import ManageAdminsTab from './tabs/ManageAdminsTab';
 import ChangePasswordTab from './tabs/ChangePasswordTab';
 import { UsersIcon } from './icons/UsersIcon';
 import { KeyIcon } from './icons/KeyIcon';
+import { LinkIcon } from './icons/LinkIcon';
+import WebhooksTab from './tabs/WebhooksTab';
 
 interface AdminSettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type ActiveTab = 'admins' | 'password';
+type ActiveTab = 'admins' | 'password' | 'webhooks';
 
 const AdminSettingsModal: React.FC<AdminSettingsModalProps> = ({ isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('admins');
@@ -30,15 +32,17 @@ const AdminSettingsModal: React.FC<AdminSettingsModalProps> = ({ isOpen, onClose
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose}>
+        <Modal isOpen={isOpen} onClose={onClose} maxWidthClass="max-w-2xl">
             <div className="flex border-b border-dark-border mb-4">
                 <TabButton tab="admins" label="Gerenciar Admins" icon={<UsersIcon />} />
                 <TabButton tab="password" label="Alterar Senha" icon={<KeyIcon />} />
+                <TabButton tab="webhooks" label="Webhooks" icon={<LinkIcon />} />
             </div>
 
             <div>
                 {activeTab === 'admins' && <ManageAdminsTab />}
                 {activeTab === 'password' && <ChangePasswordTab />}
+                {activeTab === 'webhooks' && <WebhooksTab />}
             </div>
         </Modal>
     );

@@ -6,6 +6,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @-fix: Declare Deno to resolve TypeScript errors in environments without Deno types.
 declare const Deno: any;
 
+interface BusinessHours {
+    isEnabled: boolean;
+    is24_7: boolean;
+    days: {
+        [key in number]?: {
+            isOpen: boolean;
+            startTime: string; // "HH:mm"
+            endTime: string;   // "HH:mm"
+        };
+    };
+}
+
 // Define a interface para as configurações de prazo para garantir a tipagem do código.
 interface SalespersonSettings {
   deadlines: {
@@ -32,107 +44,109 @@ serve(async (req) => {
       Deno.env.get("SERVICE_ROLE_KEY") ?? ""
     );
 
-    // 1. Busca todas as empresas para ter acesso ao pipeline_stages de cada uma.
+    // 1. Busca todas as empresas com suas configurações de prospecção.
     const { data: companies, error: companiesError } = await supabaseAdmin
       .from("companies")
-      .select("id, pipeline_stages");
+      .select("id, pipeline_stages, prospect_ai_settings");
 
     if (companiesError) throw companiesError;
     
-    const companyStageMap = new Map(companies.map(c => [c.id, c.pipeline_stages]));
-
-    // 2. Busca todos os vendedores com suas configurações individuais.
-    const { data: salespeople, error: salespeopleError } = await supabaseAdmin
-        .from("team_members")
-        .select("id, company_id, prospect_ai_settings")
-        .eq("role", "Vendedor");
+    // Define o horário atual no fuso de São Paulo para a verificação.
+    const now = new Date();
+    const saoPauloTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const dayOfWeek = saoPauloTime.getDay(); // 0 = Domingo, 1 = Segunda...
+    const currentTimeInMinutes = saoPauloTime.getHours() * 60 + saoPauloTime.getMinutes();
     
-    if(salespeopleError) throw salespeopleError;
-
     let totalLeadsReassigned = 0;
 
-    // 3. Itera sobre cada vendedor para verificar seus leads.
-    for (const salesperson of salespeople) {
-      const settings: SalespersonSettings = salesperson.prospect_ai_settings;
-      if (!settings || !settings.deadlines) continue;
+    // 2. Itera sobre cada empresa para verificar seu horário de funcionamento primeiro.
+    for (const company of companies) {
+      const settings = company.prospect_ai_settings;
+      const businessHours: BusinessHours | undefined = settings?.business_hours;
 
-      const companyStages = companyStageMap.get(salesperson.company_id);
-      if (!Array.isArray(companyStages)) continue;
-      
-      const allOtherSalespeopleInCompany = salespeople.filter(sp => sp.company_id === salesperson.company_id && sp.id !== salesperson.id);
+      // --- VERIFICAÇÃO DE HORÁRIO DE FUNCIONAMENTO ---
+      if (businessHours && businessHours.isEnabled && !businessHours.is24_7) {
+        const todaySettings = businessHours.days[dayOfWeek];
 
-      // --- LÓGICA 1: VERIFICAR PRAZO DO PRIMEIRO CONTATO (LEADS NOVOS) ---
-      const initialContactSettings = settings.deadlines.initial_contact;
-      if (initialContactSettings?.auto_reassign_enabled) {
-        const novosLeadsStage = companyStages.find((stage: any) => stage.name === "Novos Leads");
-        if (novosLeadsStage) {
-            const timeLimit = new Date(Date.now() - initialContactSettings.minutes * 60 * 1000).toISOString();
-            const { data: overdueLeads, error: leadsError } = await supabaseAdmin
-                .from("prospectai")
-                .select("id, salesperson_id, details")
-                .eq("salesperson_id", salesperson.id)
-                .eq("stage_id", novosLeadsStage.id)
-                .lt("created_at", timeLimit);
-            
-            if (leadsError) {
-                console.error(`Error fetching overdue initial leads for salesperson ${salesperson.id}:`, leadsError);
-            } else if (overdueLeads.length > 0 && allOtherSalespeopleInCompany.length > 0) {
-                 for (const lead of overdueLeads) {
-                    let newSalespersonId: string | null = null;
-                    if (initialContactSettings.reassignment_mode === "specific") {
-                        newSalespersonId = initialContactSettings.reassignment_target_id;
-                    } else { // "random"
-                        const randomIndex = Math.floor(Math.random() * allOtherSalespeopleInCompany.length);
-                        newSalespersonId = allOtherSalespeopleInCompany[randomIndex].id;
-                    }
+        if (!todaySettings || !todaySettings.isOpen) {
+          // A empresa está fechada hoje, pula para a próxima.
+          continue;
+        }
+        
+        const [startH, startM] = todaySettings.startTime.split(':').map(Number);
+        const startTimeInMinutes = startH * 60 + startM;
 
-                    if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
+        const [endH, endM] = todaySettings.endTime.split(':').map(Number);
+        const endTimeInMinutes = endH * 60 + endM;
 
-                    const newDetails = { ...(lead.details || {}), reassigned_by_system: true, reassigned_from: lead.salesperson_id, reassigned_to: newSalespersonId, reassigned_at: new Date().toISOString(), reason: "Initial contact deadline missed." };
-                    const { error: updateError } = await supabaseAdmin.from("prospectai").update({ salesperson_id: newSalespersonId, details: newDetails }).eq("id", lead.id);
-
-                    if (updateError) console.error(`Error reassigning initial lead ${lead.id}:`, updateError);
-                    else totalLeadsReassigned++;
-                }
-            }
+        if (currentTimeInMinutes < startTimeInMinutes || currentTimeInMinutes > endTimeInMinutes) {
+          // A empresa está fora do horário de expediente, pula para a próxima.
+          continue;
         }
       }
+      // --- Fim da Verificação de Horário ---
+      
+      // Se o código chegou aqui, a empresa está "aberta". Prossegue com as checagens de prazo.
 
-      // --- LÓGICA 2: VERIFICAR PRAZO DO PRIMEIRO FEEDBACK (EM "PRIMEIRA TENTATIVA") ---
-      const firstFeedbackSettings = settings.deadlines.first_feedback;
-      if (firstFeedbackSettings?.auto_reassign_enabled) {
-        const primeiraTentativaStage = companyStages.find((stage: any) => stage.name === "Primeira Tentativa");
-        if (primeiraTentativaStage) {
-            const timeLimit = new Date(Date.now() - firstFeedbackSettings.minutes * 60 * 1000).toISOString();
-            const { data: overdueFeedbackLeads, error: feedbackLeadsError } = await supabaseAdmin
-                .from("prospectai")
-                .select("id, salesperson_id, details")
-                .eq("salesperson_id", salesperson.id)
-                .eq("stage_id", primeiraTentativaStage.id)
-                .lt("prospected_at", timeLimit) // Baseado em quando a prospecção começou
-                .or("feedback.is.null,feedback.eq.[]"); // Sem nenhum feedback ainda
+      const { data: salespeople, error: salespeopleError } = await supabaseAdmin
+        .from("team_members")
+        .select("id, company_id, prospect_ai_settings")
+        .eq("role", "Vendedor")
+        .eq("company_id", company.id);
+        
+      if (salespeopleError || !salespeople) {
+        console.error(`Error fetching salespeople for company ${company.id}:`, salespeopleError);
+        continue;
+      }
 
-            if (feedbackLeadsError) {
-                console.error(`Error fetching overdue feedback leads for salesperson ${salesperson.id}:`, feedbackLeadsError);
-            } else if (overdueFeedbackLeads.length > 0 && allOtherSalespeopleInCompany.length > 0) {
-                for (const lead of overdueFeedbackLeads) {
-                    let newSalespersonId: string | null = null;
-                    if (firstFeedbackSettings.reassignment_mode === "specific") {
-                        newSalespersonId = firstFeedbackSettings.reassignment_target_id;
-                    } else { // "random"
-                        const randomIndex = Math.floor(Math.random() * allOtherSalespeopleInCompany.length);
-                        newSalespersonId = allOtherSalespeopleInCompany[randomIndex].id;
-                    }
+      const allOtherSalespeopleInCompany = salespeople.filter((sp: any) => sp.company_id === company.id);
 
-                    if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
+      // 3. Itera sobre os vendedores da empresa que está aberta.
+      for (const salesperson of salespeople) {
+        const salespersonSettings: SalespersonSettings = salesperson.prospect_ai_settings;
+        if (!salespersonSettings || !salespersonSettings.deadlines) continue;
 
-                    const newDetails = { ...(lead.details || {}), reassigned_by_system: true, reassigned_from: lead.salesperson_id, reassigned_to: newSalespersonId, reassigned_at: new Date().toISOString(), reason: "First feedback deadline missed." };
-                    const { error: updateError } = await supabaseAdmin.from("prospectai").update({ salesperson_id: newSalespersonId, details: newDetails }).eq("id", lead.id);
+        const companyStages = company.pipeline_stages;
+        if (!Array.isArray(companyStages)) continue;
 
-                    if (updateError) console.error(`Error reassigning feedback lead ${lead.id}:`, updateError);
-                    else totalLeadsReassigned++;
-                }
-            }
+        // --- LÓGICA 1: VERIFICAR PRAZO DO PRIMEIRO CONTATO (LEADS NOVOS) ---
+        const initialContactSettings = salespersonSettings.deadlines.initial_contact;
+        if (initialContactSettings?.auto_reassign_enabled) {
+          const novosLeadsStage = companyStages.find((stage: any) => stage.name === "Novos Leads");
+          if (novosLeadsStage) {
+              const timeLimit = new Date(Date.now() - initialContactSettings.minutes * 60 * 1000).toISOString();
+              const { data: overdueLeads, error: leadsError } = await supabaseAdmin
+                  .from("prospectai")
+                  .select("id, salesperson_id, details")
+                  .eq("salesperson_id", salesperson.id)
+                  .eq("stage_id", novosLeadsStage.id)
+                  .lt("created_at", timeLimit);
+              
+              if (leadsError) {
+                  console.error(`Error fetching overdue initial leads for salesperson ${salesperson.id}:`, leadsError);
+              } else if (overdueLeads.length > 0 && allOtherSalespeopleInCompany.length > 1) {
+                   for (const lead of overdueLeads) {
+                      let newSalespersonId: string | null = null;
+                      const potentialTargets = allOtherSalespeopleInCompany.filter(sp => sp.id !== lead.salesperson_id);
+                      if(potentialTargets.length === 0) continue;
+
+                      if (initialContactSettings.reassignment_mode === "specific") {
+                          newSalespersonId = initialContactSettings.reassignment_target_id;
+                      } else { // "random"
+                          const randomIndex = Math.floor(Math.random() * potentialTargets.length);
+                          newSalespersonId = potentialTargets[randomIndex].id;
+                      }
+
+                      if (!newSalespersonId || newSalespersonId === lead.salesperson_id) continue;
+
+                      const newDetails = { ...(lead.details || {}), reassigned_by_system: true, reassigned_from: lead.salesperson_id, reassigned_to: newSalespersonId, reassigned_at: new Date().toISOString(), reason: "Initial contact deadline missed." };
+                      const { error: updateError } = await supabaseAdmin.from("prospectai").update({ salesperson_id: newSalespersonId, details: newDetails }).eq("id", lead.id);
+
+                      if (updateError) console.error(`Error reassigning initial lead ${lead.id}:`, updateError);
+                      else totalLeadsReassigned++;
+                  }
+              }
+          }
         }
       }
     }

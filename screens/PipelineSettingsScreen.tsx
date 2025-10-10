@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, ChangeEvent } from 'react';
 import { useData } from '../hooks/useMockData';
-import { PipelineStage, TeamMember, Company } from '../types';
+import { PipelineStage, TeamMember, Company, BusinessHours } from '../types';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -209,35 +209,6 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
         setKpiModalOpen(false);
     };
 
-    const kpiCards = useMemo(() => {
-        const enabledStages = pipelineStages.filter(stage => stage.isEnabled);
-        const stageMap = new Map(enabledStages.map(s => [s.name, s]));
-
-        const staticKpis = [
-            { title: 'Meus Leads Atribuídos', color: '#00D1FF', visible: true },
-            { title: 'Leads Convertidos', color: '#22C55E', visible: true },
-        ];
-
-        const dynamicKpis = [
-            { title: 'Primeira Tentativa', color: '#FBBF24', visible: stageMap.has('Primeira Tentativa') },
-            { title: 'Segunda Tentativa', color: '#F59E0B', visible: stageMap.has('Segunda Tentativa') },
-            { title: 'Terceira Tentativa', color: '#8B5CF6', visible: stageMap.has('Terceira Tentativa') },
-            { title: 'Leads Agendados', color: '#60A5FA', visible: stageMap.has('Agendado') },
-        ];
-        
-        const customKpis = enabledStages
-            .filter(s => !s.isFixed && !['Segunda Tentativa', 'Terceira Tentativa', 'Agendado'].includes(s.name))
-            .map(s => ({ title: s.name, color: '#8A93A3', visible: true }));
-
-        const finalKpis = [
-            { title: 'Leads Não Convertidos', color: '#EF4444', visible: true },
-            { title: 'Round-Robin', color: '#A78BFA', visible: stageMap.has('Remanejados') },
-        ];
-
-        return [...staticKpis, ...dynamicKpis, ...customKpis, ...finalKpis].filter(kpi => kpi.visible);
-    }, [pipelineStages]);
-
-
     if (!company) return <div>Carregando...</div>;
 
     return (
@@ -247,20 +218,11 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
                     <button onClick={onBack} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-2">
                         &larr; Voltar para Configurações
                     </button>
-                    <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Editor Visual do Pipeline</h1>
+                    <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Editor do Pipeline (Farm)</h1>
                 </div>
             </header>
             
             <p className="text-dark-secondary mb-8">Arraste para o lado para visualizar e configurar todas as etapas do seu funil de prospecção. As alterações são salvas automaticamente.</p>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-6 mb-8">
-                {kpiCards.map(kpi => (
-                    <Card key={kpi.title} className="p-4 text-center animate-fade-in">
-                        <p className="text-sm font-medium text-dark-secondary truncate">{kpi.title}</p>
-                        <p className="text-4xl font-bold mt-2" style={{ color: kpi.color }}>0</p>
-                    </Card>
-                ))}
-            </div>
             
             <div className="flex overflow-x-auto space-x-6 pb-4">
                 {pipelineStages.map(stage => (

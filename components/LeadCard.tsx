@@ -24,6 +24,8 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { formatDuration } from '../utils/dateUtils';
 import { PencilIcon } from './icons/PencilIcon';
+import { calculateBusinessHoursDeadline, calculateRemainingBusinessTime } from '../utils/businessHoursUtils';
+import { ExclamationIcon } from './icons/ExclamationIcon';
 
 interface LeadCardProps {
     lead: ProspectAILead;
@@ -35,6 +37,7 @@ interface LeadCardProps {
     onReassign?: (lead: ProspectAILead) => void;
     isReassignedAwayView?: boolean;
     onReopenRequest?: (lead: ProspectAILead) => void;
+    isPending?: boolean;
 }
 
 const DetailItem: React.FC<{ icon: React.ReactNode; label: string; value: string | undefined | null; }> = ({ icon, label, value }) => {
@@ -86,7 +89,7 @@ const feedbackColorClasses = {
 };
 
 
-const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, isReassignedAwayView = false, onReopenRequest }) => {
+const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, isReassignedAwayView = false, onReopenRequest, isPending = false }) => {
     const { companies, teamMembers, addProspectLeadFeedback, updateProspectLeadStatus, updateProspectLead } = useData();
     const [isCopied, setIsCopied] = useState(false);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -109,40 +112,51 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
     const leadStage = pipelineStages.find(s => s.id === lead.stage_id);
     const leadSalesperson = teamMembers.find(tm => tm.id === lead.salespersonId);
     
-    useEffect(() => {
+    const deadline = useMemo(() => {
         if (!leadSalesperson || leadStage?.name !== 'Novos Leads') {
-            setTimeLeft(null);
-            return;
+            return null;
         }
 
         const deadlineSettings = leadSalesperson.prospectAISettings?.deadlines?.initial_contact;
         if (!deadlineSettings?.auto_reassign_enabled) {
+            return null;
+        }
+
+        // Calculate the deadline considering business hours
+        return calculateBusinessHoursDeadline(
+            new Date(lead.createdAt),
+            deadlineSettings.minutes,
+            leadCompany?.prospectAISettings?.business_hours
+        );
+    }, [lead.createdAt, leadStage?.name, leadSalesperson, leadCompany]);
+
+    useEffect(() => {
+        if (!deadline || !leadCompany) {
             setTimeLeft(null);
             return;
         }
 
-        const deadlineMinutes = deadlineSettings.minutes;
-        const createdAt = new Date(lead.createdAt).getTime();
-        const deadline = createdAt + deadlineMinutes * 60 * 1000;
+        const businessHours = leadCompany.prospectAISettings?.business_hours;
 
-        const calculateTimeLeft = () => {
-            const now = new Date().getTime();
-            const remaining = deadline - now;
+        const calculateAndSetTimeLeft = () => {
+            const now = new Date();
+            const remaining = calculateRemainingBusinessTime(now, deadline, businessHours);
             setTimeLeft(remaining > 0 ? remaining : 0);
         };
 
-        calculateTimeLeft();
-        const interval = setInterval(calculateTimeLeft, 1000);
+        calculateAndSetTimeLeft();
+        const interval = setInterval(calculateAndSetTimeLeft, 1000); // Check every second
 
         return () => clearInterval(interval);
-    }, [lead.id, lead.createdAt, leadStage?.name, leadSalesperson]);
+
+    }, [deadline, leadCompany]);
 
     const formatTime = (ms: number | null): string => {
-        if (ms === null || ms <= 0) return '00:00';
+        if (ms === null || ms <= 0) return 'Esgotado';
         const totalSeconds = Math.floor(ms / 1000);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        return `${minutes}:${String(seconds).padStart(2, '0')}`;
     };
 
     const getTimerColor = (ms: number | null, totalMinutes: number): string => {
@@ -186,13 +200,16 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            // @-fix: Iterate directly over FileList using Array.from() to ensure correct typing for 'file'.
-            for (const file of Array.from(e.target.files)) {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setFeedbackImages(prev => [...prev, reader.result as string]);
-                };
-                reader.readAsDataURL(file);
+            // @-fix: Using a standard for loop to iterate over the FileList, which is not a true array and can cause typing issues with for...of loops. This ensures `file` is correctly typed as a File object.
+            for (let i = 0; i < e.target.files.length; i++) {
+                const file = e.target.files[i];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setFeedbackImages(prev => [...prev, reader.result as string]);
+                    };
+                    reader.readAsDataURL(file);
+                }
             }
         }
     };
@@ -318,11 +335,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
         setIsDetailModalOpen(false);
     };
 
-    const cardClassName = `p-4 transition-all duration-300 animate-fade-in ${
+    const cardClassName = `p-4 transition-all duration-300 animate-fade-in relative ${
         (isClickableForManager || isClickableForUser || isClickableForProspecting) ? 'cursor-pointer hover:bg-dark-card-active hover:shadow-glow' : ''
     } ${
         isDisabled && isProspectingActionable ? 'opacity-60 cursor-not-allowed' : ''
-    } ${statusBorderClass}`;
+    } ${statusBorderClass} ${isPending ? 'animate-pulse-border' : ''}`;
 
      if (isReassignedAwayView) {
         const reassignedToName = allSalespeople.find(sp => sp.id === lead.salespersonId)?.name || 'outro vendedor';
@@ -349,6 +366,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
     return (
         <>
             <Card className={cardClassName} onClick={handleCardClick}>
+                {isPending && (
+                    <div className="absolute top-2 right-2 p-1 bg-yellow-900/50 rounded-full z-10" title="Este lead está pendente de feedback desde o dia anterior.">
+                        <ExclamationIcon className="w-4 h-4 text-yellow-300" />
+                    </div>
+                )}
                 <div className="space-y-3">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -400,7 +422,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                         <div className={`pt-3 border-t border-dark-border flex items-center justify-center gap-2 font-bold ${getTimerColor(timeLeft, deadlineMinutes)}`}>
                             <ClockIcon className="w-4 h-4" />
                             <span className="text-sm leading-normal">
-                                {timeLeft > 0 ? `Tempo: ${formatTime(timeLeft)}` : 'Prazo Esgotado!'}
+                                Tempo: {formatTime(timeLeft)}
                             </span>
                         </div>
                     )}

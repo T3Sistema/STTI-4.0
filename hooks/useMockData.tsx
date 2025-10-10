@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
-import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage } from '../types';
+import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage, BusinessHours, ProspectAISettings } from '../types';
 
 // DATA CONTEXT
 interface DataContextType {
@@ -229,8 +229,23 @@ const mapTeamMemberToDB = (tm: TeamMember) => ({
     is_hunter_mode_active: tm.isHunterModeActive,
 });
 
-const defaultCompanyProspectAISettings = {
+const defaultBusinessHours: BusinessHours = {
+    isEnabled: false,
+    is24_7: false,
+    days: {
+        0: { isOpen: false, startTime: '09:00', endTime: '18:00' }, // Sunday
+        1: { isOpen: true, startTime: '09:00', endTime: '18:00' }, // Monday
+        2: { isOpen: true, startTime: '09:00', endTime: '18:00' }, // Tuesday
+        3: { isOpen: true, startTime: '09:00', endTime: '18:00' }, // Wednesday
+        4: { isOpen: true, startTime: '09:00', endTime: '18:00' }, // Thursday
+        5: { isOpen: true, startTime: '09:00', endTime: '18:00' }, // Friday
+        6: { isOpen: false, startTime: '09:00', endTime: '18:00' }, // Saturday
+    }
+};
+
+const defaultCompanyProspectAISettings: ProspectAISettings = {
   show_monthly_leads_kpi: { enabled: false, visible_to: [] },
+  business_hours: defaultBusinessHours,
 };
 
 const mapCompanyFromDB = (c: any): Company => ({
@@ -254,6 +269,14 @@ const mapCompanyFromDB = (c: any): Company => ({
     prospectAISettings: {
         ...defaultCompanyProspectAISettings,
         ...(c.prospect_ai_settings || {}),
+        business_hours: {
+            ...defaultBusinessHours,
+            ...((c.prospect_ai_settings && c.prospect_ai_settings.business_hours) || {}),
+            days: {
+                ...defaultBusinessHours.days,
+                ...((c.prospect_ai_settings && c.prospect_ai_settings.business_hours && c.prospect_ai_settings.business_hours.days) || {})
+            }
+        }
     },
 });
 
@@ -594,7 +617,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             is_active: false,
             monthly_sales_goal: 10,
             enabled_features: companyData.enabledFeatures,
-            prospect_ai_settings: { show_monthly_leads_kpi: { enabled: false, visible_to: [] } },
+            prospect_ai_settings: defaultCompanyProspectAISettings,
             pipeline_stages: defaultPipelineStages,
         };
 

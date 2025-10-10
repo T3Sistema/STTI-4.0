@@ -90,11 +90,25 @@ export interface TeamMember {
   isHunterModeActive?: boolean;
 }
 
+export interface BusinessHours {
+    isEnabled: boolean;
+    is24_7: boolean;
+    // Day of week: 0 for Sunday, 1 for Monday, etc.
+    days: {
+        [key in 0 | 1 | 2 | 3 | 4 | 5 | 6]?: {
+            isOpen: boolean;
+            startTime: string; // "HH:mm"
+            endTime: string;   // "HH:mm"
+        };
+    };
+}
+
 export interface ProspectAISettings {
   show_monthly_leads_kpi: {
     enabled: boolean;
     visible_to: 'all' | string[]; // 'all' or array of salesperson IDs
   };
+  business_hours?: BusinessHours;
 }
 
 export interface Company {

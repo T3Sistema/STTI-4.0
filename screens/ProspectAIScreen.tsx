@@ -46,7 +46,7 @@ const getStageColorClasses = (stageName: string) => {
         case 'Segunda Tentativa':
             return { bar: 'bg-orange-500', badge: 'bg-orange-500 text-black' };
         case 'Terceira Tentativa':
-            return { bar: 'bg-amber-600', badge: 'bg-amber-600 text-black' };
+            return { bar: 'bg-dark-stage-attempt3', badge: 'bg-dark-stage-attempt3 text-black' };
         case 'Agendado':
             return { bar: 'bg-blue-500', badge: 'bg-blue-500 text-white' };
         case 'Remanejados':
@@ -438,6 +438,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         return convertedFarm + convertedHunter;
     }, [prospectaiLeads, hunterLeads, user.id, myCompanyStages]);
 
+    const pendingLeadIds = useMemo(() => new Set(pendingLeads.map(l => l.id)), [pendingLeads]);
 
     const handleStartProspecting = async () => {
         if (prospectingLead) {
@@ -666,6 +667,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                         onReassign={setLeadToReassign} 
                                         allSalespeople={teamMembers}
                                         onReopenRequest={handleReopenRequest}
+                                        isPending={pendingLeadIds.has(lead.id)}
                                     />
                                 ))
                                 : placeholderCard

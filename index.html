@@ -56,6 +56,7 @@
               'fade-in': 'fadeIn 0.5s ease-in-out',
               'modal-fade-in': 'modalFadeIn 0.3s ease-in-out',
               'stagger': 'stagger 0.5s ease-in-out forwards',
+              'pulse-border': 'pulseBorder 2s infinite',
             },
             keyframes: {
               fadeIn: {
@@ -69,6 +70,10 @@
               stagger: {
                 '0%': { opacity: 0, transform: 'translateY(20px)' },
                 '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
+              pulseBorder: {
+                '0%, 100%': { borderColor: 'rgba(255, 193, 7, 1)' },
+                '50%': { borderColor: 'rgba(255, 193, 7, 0.4)' },
               },
             }
           }

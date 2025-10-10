@@ -39,6 +39,8 @@ type Period = 'last_7_days' | 'last_30_days' | 'all' | 'custom';
 // Função para definir as cores de cada estágio do pipeline
 const getStageColorClasses = (stageName: string) => {
     switch (stageName) {
+        case 'Leads Pendentes':
+            return { bar: 'bg-yellow-500', badge: 'bg-yellow-500 text-black' };
         case 'Novos Leads':
             return { bar: 'bg-cyan-500', badge: 'bg-cyan-500 text-white' };
         case 'Primeira Tentativa':
@@ -630,6 +632,21 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
 
             {/* Kanban Columns */}
             <div className="flex lg:overflow-x-auto lg:space-x-6 pb-4 flex-col lg:flex-row gap-6 lg:gap-0">
+                {pendingLeads.length > 0 && !isManagerView && (
+                    <ProspectColumn title="Leads Pendentes" count={pendingLeads.length}>
+                        {pendingLeads.map(lead => (
+                            <LeadCard
+                                key={`pending-${lead.id}`}
+                                lead={lead}
+                                isManagerView={isManagerView}
+                                onReassign={setLeadToReassign}
+                                allSalespeople={teamMembers}
+                                onReopenRequest={handleReopenRequest}
+                                isPending={true}
+                            />
+                        ))}
+                    </ProspectColumn>
+                )}
                  {columnsToRender.map(stage => {
                     const currentQuery = searchQueries[stage.id] || '';
                     let leadsForColumn = (categorizedLeads[stage.id] || []).filter(lead => 

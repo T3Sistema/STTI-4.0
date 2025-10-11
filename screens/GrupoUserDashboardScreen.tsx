@@ -7,17 +7,21 @@ import DashboardScreen from './DashboardScreen';
 import Modal from '../components/Modal';
 import GrupoUserProfileForm from '../components/forms/GrupoUserProfileForm';
 import GrupoUserPasswordForm from '../components/forms/GrupoUserPasswordForm';
+import GrupoMetricsScreen from './GrupoMetricsScreen'; // Importa a nova tela
 
 interface GrupoUserDashboardScreenProps {
     user: GrupoEmpresarial;
     onLogout: () => void;
 }
 
+type GrupoView = 'empresas' | 'metricas';
+
 const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ user, onLogout }) => {
-    const { companies, vehicles, gruposEmpresariais } = useData();
+    const { companies, vehicles, gruposEmpresariais, prospectaiLeads, hunterLeads, teamMembers } = useData();
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+    const [currentView, setCurrentView] = useState<GrupoView>('empresas');
 
     // Get the most up-to-date user data from the context
     const currentUserData = useMemo(() => 
@@ -25,7 +29,9 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
     [gruposEmpresariais, user]);
 
     const accessibleCompanies = useMemo(() => {
-        return companies.filter(company => currentUserData.companyIds.includes(company.id) && company.isActive);
+        return companies
+            .filter(company => currentUserData.companyIds.includes(company.id) && company.isActive)
+            .sort((a, b) => a.name.localeCompare(b.name));
     }, [companies, currentUserData.companyIds]);
 
     const handleProfileUpdate = (updatedUser: GrupoEmpresarial) => {
@@ -56,6 +62,55 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
         );
     }
 
+    const renderContent = () => {
+        switch (currentView) {
+            case 'metricas':
+                return (
+                    <GrupoMetricsScreen
+                        accessibleCompanies={accessibleCompanies}
+                        prospectaiLeads={prospectaiLeads}
+                        hunterLeads={hunterLeads}
+                        teamMembers={teamMembers}
+                    />
+                );
+            case 'empresas':
+            default:
+                return (
+                    <>
+                        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+                            <h2 className="text-2xl font-bold text-dark-text">Empresas Acessíveis</h2>
+                            <div className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm">
+                                <span className="font-bold text-dark-primary">{accessibleCompanies.length}</span>
+                                <span className="text-dark-secondary ml-2">Empresas no grupo</span>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {accessibleCompanies.map(company => {
+                                const companyVehicles = vehicles.filter(v => v.companyId === company.id && v.status === 'available').length;
+                                return (
+                                    <CompanyInfoCard
+                                        key={company.id}
+                                        company={company}
+                                        vehicleCount={companyVehicles}
+                                        onClick={() => setSelectedCompanyId(company.id)}
+                                    />
+                                );
+                            })}
+                        </div>
+                        {accessibleCompanies.length === 0 && (
+                            <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 bg-dark-card rounded-2xl border border-dark-border">
+                                <h3 className="text-xl font-bold text-dark-text">Nenhuma Empresa Acessível</h3>
+                                <p className="text-dark-secondary mt-2">
+                                    Nenhuma empresa foi associada ao seu grupo ou as empresas associadas estão inativas.
+                                </p>
+                            </div>
+                        )}
+                    </>
+                );
+        }
+    }
+
     return (
         <div className="min-h-screen bg-dark-background text-dark-text transition-colors duration-300 flex flex-col">
             <div className="flex-grow w-full max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -82,36 +137,19 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
                             </div>
                         </div>
                     </div>
-                     
-                     <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                        <h2 className="text-2xl font-bold text-dark-text">Empresas Acessíveis</h2>
-                        <div className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg text-sm">
-                            <span className="font-bold text-dark-primary">{accessibleCompanies.length}</span>
-                            <span className="text-dark-secondary ml-2">Empresas no grupo</span>
-                        </div>
+
+                    <div className="mb-6 border-b border-dark-border">
+                        <nav className="flex space-x-4">
+                             <button onClick={() => setCurrentView('empresas')} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'empresas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
+                                Empresas
+                            </button>
+                            <button onClick={() => setCurrentView('metricas')} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'metricas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
+                                Métricas
+                            </button>
+                        </nav>
                     </div>
                      
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {accessibleCompanies.map(company => {
-                            const companyVehicles = vehicles.filter(v => v.companyId === company.id && v.status === 'available').length;
-                            return (
-                                <CompanyInfoCard
-                                    key={company.id}
-                                    company={company}
-                                    vehicleCount={companyVehicles}
-                                    onClick={() => setSelectedCompanyId(company.id)}
-                                />
-                            );
-                        })}
-                    </div>
-                     {accessibleCompanies.length === 0 && (
-                        <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 bg-dark-card rounded-2xl border border-dark-border">
-                            <h3 className="text-xl font-bold text-dark-text">Nenhuma Empresa Acessível</h3>
-                            <p className="text-dark-secondary mt-2">
-                                Nenhuma empresa foi associada ao seu grupo ou as empresas associadas estão inativas.
-                            </p>
-                        </div>
-                    )}
+                     {renderContent()}
                 </main>
             </div>
              <footer className="w-full text-center py-4 text-dark-secondary text-xs border-t border-dark-border/20">

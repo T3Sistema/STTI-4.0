@@ -130,6 +130,7 @@ export interface Company {
   enabledFeatures?: Feature[];
   pipeline_stages: PipelineStage[];
   prospectAISettings?: ProspectAISettings;
+  createdAt?: string;
 }
 
 export interface Notification {

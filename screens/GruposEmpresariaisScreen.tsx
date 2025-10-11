@@ -1,6 +1,4 @@
-
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { GrupoEmpresarial } from '../types';
 import Modal from '../components/Modal';
 import GrupoEmpresarialForm from '../components/forms/GrupoEmpresarialForm';
@@ -10,6 +8,7 @@ import { BriefcaseIcon } from '../components/icons/BriefcaseIcon';
 import { useData } from '../hooks/useMockData';
 import ManageGroupCompaniesModal from '../components/modals/ManageGroupCompaniesModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { SearchIcon } from '../components/icons/SearchIcon';
 
 const GruposEmpresariaisScreen: React.FC = () => {
     const { 
@@ -27,6 +26,17 @@ const GruposEmpresariaisScreen: React.FC = () => {
     const [selectedGrupo, setSelectedGrupo] = useState<GrupoEmpresarial | null>(null);
     const [isStatusConfirmOpen, setStatusConfirmOpen] = useState(false);
     const [statusChangeInfo, setStatusChangeInfo] = useState<{ id: string; name: string; newStatus: boolean } | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredGrupos = useMemo(() => {
+        const query = searchQuery.toLowerCase();
+        return [...gruposEmpresariais]
+            .filter(grupo =>
+                grupo.name.toLowerCase().includes(query) ||
+                grupo.responsibleName.toLowerCase().includes(query)
+            )
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [gruposEmpresariais, searchQuery]);
 
     const handleOpenFormModal = (grupo?: GrupoEmpresarial) => {
         setEditingGrupo(grupo);
@@ -77,20 +87,32 @@ const GruposEmpresariaisScreen: React.FC = () => {
 
     return (
         <div className="animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                 <h1 className="text-3xl font-bold text-dark-text">Grupos Empresariais</h1>
-                <button 
-                    onClick={() => handleOpenFormModal()} 
-                    className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold"
-                >
-                    <PlusIcon />
-                    <span>Criar Novo Grupo</span>
-                </button>
+                <div className="flex items-center gap-3">
+                     <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome do grupo ou responsável..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="bg-dark-card border border-dark-border rounded-lg pl-10 pr-4 py-2 text-sm w-full sm:w-80"
+                        />
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-secondary" />
+                    </div>
+                    <button 
+                        onClick={() => handleOpenFormModal()} 
+                        className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold"
+                    >
+                        <PlusIcon />
+                        <span className="hidden sm:inline">Criar Novo Grupo</span>
+                    </button>
+                </div>
             </div>
 
-            {gruposEmpresariais.length > 0 ? (
+            {filteredGrupos.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {gruposEmpresariais.map(grupo => (
+                    {filteredGrupos.map(grupo => (
                         <GrupoEmpresarialCard 
                             key={grupo.id}
                             grupo={grupo}
@@ -109,8 +131,10 @@ const GruposEmpresariaisScreen: React.FC = () => {
             ) : (
                 <div className="text-center p-16 bg-dark-card rounded-2xl border border-dark-border">
                     <BriefcaseIcon className="w-16 h-16 mx-auto text-dark-secondary" />
-                    <h2 className="text-2xl font-bold text-dark-text mt-4">Nenhum grupo empresarial cadastrado</h2>
-                    <p className="text-dark-secondary mt-2">Clique em "Criar Novo Grupo" para começar.</p>
+                    <h2 className="text-2xl font-bold text-dark-text mt-4">Nenhum grupo encontrado</h2>
+                    <p className="text-dark-secondary mt-2">
+                        {searchQuery ? 'Tente ajustar sua busca.' : 'Clique em "Criar Novo Grupo" para começar.'}
+                    </p>
                 </div>
             )}
             

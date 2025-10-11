@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { GrupoEmpresarial, Company } from '../../types';
 import Modal from '../Modal';
+import { SearchIcon } from '../icons/SearchIcon';
 
 interface ManageGroupCompaniesModalProps {
     isOpen: boolean;
@@ -20,12 +22,20 @@ const ManageGroupCompaniesModal: React.FC<ManageGroupCompaniesModalProps> = ({
 }) => {
     const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (grupo) {
             setSelectedCompanyIds(grupo.companyIds || []);
         }
+        setSearchQuery('');
     }, [grupo, isOpen]);
+
+    const filteredCompanies = useMemo(() => {
+        return allCompanies.filter(company =>
+            company.name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+    }, [allCompanies, searchQuery]);
 
     const handleToggleCompany = (companyId: string) => {
         setSelectedCompanyIds(prev =>
@@ -53,9 +63,20 @@ const ManageGroupCompaniesModal: React.FC<ManageGroupCompaniesModalProps> = ({
                 <p className="text-center text-dark-secondary mb-6">
                     Selecione as empresas que pertencem ao grupo <strong className="text-dark-text">{grupo.name}</strong>.
                 </p>
+                
+                 <div className="relative mb-4">
+                    <input
+                        type="text"
+                        placeholder="Buscar empresa..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-dark-background border border-dark-border rounded-lg pl-10 pr-4 py-2 text-sm"
+                    />
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-secondary" />
+                </div>
 
                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2 border-t border-b border-dark-border py-4">
-                    {allCompanies.map(company => (
+                    {filteredCompanies.map(company => (
                         <label
                             key={company.id}
                             className="flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer bg-dark-background/50 hover:border-dark-primary/30"
@@ -75,6 +96,9 @@ const ManageGroupCompaniesModal: React.FC<ManageGroupCompaniesModalProps> = ({
                     ))}
                     {allCompanies.length === 0 && (
                         <p className="text-center text-dark-secondary py-4">Nenhuma empresa cadastrada no sistema.</p>
+                    )}
+                    {filteredCompanies.length === 0 && allCompanies.length > 0 && (
+                         <p className="text-center text-dark-secondary py-4">Nenhuma empresa encontrada com este nome.</p>
                     )}
                 </div>
 

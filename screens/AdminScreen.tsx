@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useData } from '../hooks/useMockData';
 import type { Company } from '../types';
 import { PlusIcon } from '../components/icons/PlusIcon';
@@ -9,6 +9,7 @@ import CompanyForm from '../components/forms/CompanyForm';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { HistoryIcon } from '../components/icons/HistoryIcon';
 import LogCenterScreen from './LogCenterScreen';
+import { SearchIcon } from '../components/icons/SearchIcon';
 
 const CompanyRow: React.FC<{ company: Company; onStatusChange: (id: string, status: boolean) => void; onEdit: (company: Company) => void; onDelete: (id: string) => void; }> = ({ company, onStatusChange, onEdit, onDelete }) => {
     const handleToggle = () => {
@@ -27,6 +28,9 @@ const CompanyRow: React.FC<{ company: Company; onStatusChange: (id: string, stat
                     : 'bg-yellow-500/10 text-yellow-400'}`}>
                     {company.isActive ? 'Ativa' : 'Pendente'}
                 </span>
+            </td>
+             <td className="p-4 text-xs text-dark-secondary">
+                {company.createdAt ? new Date(company.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
             </td>
             <td className="p-4">
                 <label htmlFor={`toggle-${company.id}`} className="flex items-center cursor-pointer">
@@ -56,6 +60,15 @@ const AdminScreen: React.FC = () => {
     const [selectedCompany, setSelectedCompany] = useState<Company | undefined>(undefined);
     const [deletingCompanyId, setDeletingCompanyId] = useState<string | null>(null);
     const [currentView, setCurrentView] = useState<'companies' | 'logs'>('companies');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const filteredAndSortedCompanies = useMemo(() => {
+        return companies
+            .filter(company =>
+                company.name.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [companies, searchQuery]);
 
     const handleAddNew = () => {
         setSelectedCompany(undefined);
@@ -102,13 +115,23 @@ const AdminScreen: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-dark-text">Gestão de Empresas</h1>
                 <div className="flex items-center gap-3">
+                     <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Buscar empresa..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="bg-dark-card border border-dark-border rounded-lg pl-10 pr-4 py-2 text-sm w-full sm:w-64"
+                        />
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-secondary" />
+                    </div>
                     <button onClick={() => setCurrentView('logs')} className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm">
                         <HistoryIcon />
-                        <span>Central de Logs</span>
+                        <span className="hidden sm:inline">Central de Logs</span>
                     </button>
                     <button onClick={handleAddNew} className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold">
                         <PlusIcon />
-                        <span>Nova Empresa</span>
+                        <span className="hidden sm:inline">Nova Empresa</span>
                     </button>
                 </div>
             </div>
@@ -120,12 +143,13 @@ const AdminScreen: React.FC = () => {
                             <tr>
                                 <th className="p-4 font-semibold text-dark-secondary uppercase tracking-wider">Empresa</th>
                                 <th className="p-4 font-semibold text-dark-secondary uppercase tracking-wider">Status</th>
+                                <th className="p-4 font-semibold text-dark-secondary uppercase tracking-wider">Data Criação</th>
                                 <th className="p-4 font-semibold text-dark-secondary uppercase tracking-wider">Ativar/Desativar</th>
                                 <th className="p-4 font-semibold text-dark-secondary uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {companies.map(company => (
+                            {filteredAndSortedCompanies.map(company => (
                                 <CompanyRow 
                                     key={company.id} 
                                     company={company} 

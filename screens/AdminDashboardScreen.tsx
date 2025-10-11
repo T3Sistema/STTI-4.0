@@ -12,12 +12,11 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onCompanySe
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredCompanies = useMemo(() => {
-        if (!searchQuery.trim()) {
-            return companies;
-        }
-        return companies.filter(company =>
-            company.name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        return [...companies]
+            .filter(company =>
+                company.name.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .sort((a, b) => a.name.localeCompare(b.name));
     }, [companies, searchQuery]);
 
     return (

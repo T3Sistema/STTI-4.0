@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
@@ -44,7 +45,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const {
         companies, vehicles, teamMembers, reminders, notifications, prospectaiLeads, hunterLeads,
         markNotificationAsRead, addVehicle, updateVehicle, deleteVehicle, markVehicleAsSold,
-        assignSalesperson, toggleVehiclePriority, updateCompany, deleteTeamMember, toggleVehicleAdStatus
+        assignSalesperson, toggleVehiclePriority, updateCompany, deleteTeamMember, toggleVehicleAdStatus,
+        // FIX: Destructure `updateTeamMember` from the `useData` hook.
+        updateTeamMember
     } = useData();
 
     // State

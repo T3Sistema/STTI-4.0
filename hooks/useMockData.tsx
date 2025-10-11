@@ -282,6 +282,7 @@ const mapCompanyFromDB = (c: any): Company => ({
             }
         }
     },
+    createdAt: c.created_at,
 });
 
 const mapMaintenanceFromDB = (m: any): MaintenanceRecord => ({

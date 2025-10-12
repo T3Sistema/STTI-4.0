@@ -50,8 +50,8 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
         setFilters(prev => {
             const currentValues = prev[category] as string[];
             
+            // FIX: Explicitly type 'v' as a string to resolve type inference error.
             const newValues = currentValues.includes(value)
-                // @-fix: Explicitly typed 'v' as string resolves the type inference issue where it was treated as 'unknown'.
                 ? currentValues.filter((v: string) => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };

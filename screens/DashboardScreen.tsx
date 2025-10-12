@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
@@ -35,6 +34,11 @@ import BusinessHoursSettingsScreen from './BusinessHoursSettingsScreen';
 import { CarIcon } from '../components/icons/CarIcon';
 import { DollarSignIcon } from '../components/icons/DollarSignIcon';
 import { UsersIcon } from '../components/icons/UsersIcon';
+import Card from '../components/Card';
+import { ToolboxIcon } from '../components/icons/ToolboxIcon';
+import ToolboxViewer from '../components/ToolboxViewer';
+import { CrosshairIcon } from '../components/icons/CrosshairIcon';
+import HunterScreen from './HunterScreen';
 
 interface DashboardScreenProps {
   onLogout: () => void;
@@ -46,12 +50,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
         companies, vehicles, teamMembers, reminders, notifications, prospectaiLeads, hunterLeads,
         markNotificationAsRead, addVehicle, updateVehicle, deleteVehicle, markVehicleAsSold,
         assignSalesperson, toggleVehiclePriority, updateCompany, deleteTeamMember, toggleVehicleAdStatus,
-        // FIX: Destructure `updateTeamMember` from the `useData` hook.
-        updateTeamMember
+        updateTeamMember, toolboxUrl,
     } = useData();
+    
+    const activeCompany = useMemo(() => companies.find(c => c.id === companyId), [companies, companyId]);
+    const features = activeCompany?.enabledFeatures || [];
+    const isProspectOnly = features.includes('prospectai') && !features.includes('estoque_inteligente');
 
     // State
-    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings'>(isProspectOnly ? 'prospectai' : 'dashboard');
     const [stockView, setStockView] = useState<'available' | 'sold'>('available');
     const [isCompanyFormOpen, setCompanyFormOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -79,8 +86,22 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const [isPriorityFilterActive, setPriorityFilterActive] = useState(false);
     const [highlightedVehicleId, setHighlightedVehicleId] = useState<string | null>(null);
     const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+    const [selectedProspectSalesperson, setSelectedProspectSalesperson] = useState<TeamMember | null>(null);
+    const [pipelineView, setPipelineView] = useState<'farm' | 'hunter' | null>(null);
+    const [isToolboxOpen, setIsToolboxOpen] = useState(false);
+    const [isProspectSettingsOpen, setIsProspectSettingsOpen] = useState(false);
+    const prospectSettingsRef = useRef<HTMLDivElement>(null);
 
-    const activeCompany = useMemo(() => companies.find(c => c.id === companyId), [companies, companyId]);
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (prospectSettingsRef.current && !prospectSettingsRef.current.contains(event.target as Node)) {
+                setIsProspectSettingsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
 
     // Memoized data
     const companyVehicles = useMemo(() => vehicles.filter(v => v.companyId === companyId), [vehicles, companyId]);
@@ -163,20 +184,111 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const handlePriorityItemClick = (vehicleId: string) => { setPriorityFilterActive(true); setHighlightedVehicleId(vehicleId); };
     const handleDeleteMemberRequest = (id: string) => { setDeletingTeamMemberId(id); setDeleteTeamMemberConfirmOpen(true); };
     const confirmDeleteMember = () => { if (deletingTeamMemberId) { deleteTeamMember(deletingTeamMemberId); } setDeleteTeamMemberConfirmOpen(false); setDeletingTeamMemberId(null); };
+    
+    const handleSalespersonSelect = (salesperson: TeamMember) => {
+        setSelectedProspectSalesperson(salesperson);
+        setPipelineView('farm'); // Go directly to the Farm view
+    };
+    const handleBackToSalespersonList = () => {
+        setSelectedProspectSalesperson(null);
+        setPipelineView(null);
+    };
 
     if (!activeCompany) return <div>Carregando...</div>;
-
-    const features = activeCompany.enabledFeatures || [];
     
     // Sub-screen rendering
-    if (view === 'sales_analysis') return <SalesAnalysisScreen company={activeCompany} salespeople={companySalespeople} vehicles={vehiclesSold} updateCompany={updateCompany} updateSalesperson={() => {}} onBack={() => setView('dashboard')} />;
-    if (view === 'lembrai') return <LembrAIScreen onBack={() => setView('dashboard')} companyId={companyId} />;
-    if (view === 'prospect_analysis') return <CompanyProspectPerformanceScreen company={activeCompany} salespeople={companySalespeople} prospectaiLeads={prospectaiLeads.filter(l => l.companyId === companyId)} hunterLeads={hunterLeads.filter(l => l.companyId === companyId)} onBack={() => setView('dashboard')} />;
-    if (view === 'prospectai_settings' && selectedSalespersonForSettings) return <ProspectAISettingsScreen salesperson={selectedSalespersonForSettings} onBack={() => { setView('dashboard'); setSelectedSalespersonForSettings(null); }} />;
-    if (view === 'pipeline_settings') return <PipelineSettingsScreen companyId={companyId} onBack={() => setView('dashboard')} />;
-    if (view === 'hunter_settings') return <HunterSettingsScreen salespeople={teamMembers.filter(tm => tm.companyId === companyId)} onBack={() => setView('dashboard')} onUpdateSalesperson={updateTeamMember} />;
-    if (view === 'goal_settings') return <GoalSettingsScreen companyId={companyId} onBack={() => setView('dashboard')} />;
-    if (view === 'business_hours_settings') return <BusinessHoursSettingsScreen companyId={companyId} onBack={() => setView('dashboard')} />;
+    if (view === 'sales_analysis') return <SalesAnalysisScreen company={activeCompany} salespeople={companySalespeople} vehicles={vehiclesSold} updateCompany={updateCompany} updateSalesperson={() => {}} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+    if (view === 'lembrai') return <LembrAIScreen onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} companyId={companyId} />;
+    if (view === 'prospect_analysis') return <CompanyProspectPerformanceScreen company={activeCompany} salespeople={companySalespeople} prospectaiLeads={prospectaiLeads.filter(l => l.companyId === companyId)} hunterLeads={hunterLeads.filter(l => l.companyId === companyId)} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+    if (view === 'prospectai_settings' && selectedSalespersonForSettings) return <ProspectAISettingsScreen salesperson={selectedSalespersonForSettings} onBack={() => { setView(isProspectOnly ? 'prospectai' : 'dashboard'); setSelectedSalespersonForSettings(null); }} />;
+    if (view === 'pipeline_settings') return <PipelineSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+    if (view === 'hunter_settings') return <HunterSettingsScreen salespeople={teamMembers.filter(tm => tm.companyId === companyId)} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} onUpdateSalesperson={updateTeamMember} />;
+    if (view === 'goal_settings') return <GoalSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+    if (view === 'business_hours_settings') return <BusinessHoursSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+
+    if (view === 'prospectai') {
+        if (selectedProspectSalesperson) {
+            if (pipelineView === 'farm') {
+                return (
+                    <ProspectAIScreen 
+                        user={selectedProspectSalesperson}
+                        onBack={handleBackToSalespersonList}
+                        onSwitchToHunter={selectedProspectSalesperson.isHunterModeActive ? () => setPipelineView('hunter') : undefined}
+                        onLogout={onLogout}
+                        showBackButton={true}
+                        isManagerView={true}
+                    />
+                );
+            }
+            if (pipelineView === 'hunter' && selectedProspectSalesperson.isHunterModeActive) {
+                return (
+                    <HunterScreen
+                        user={selectedProspectSalesperson}
+                        activeCompany={activeCompany}
+                        onBack={() => setPipelineView('farm')}
+                        isManagerView={true}
+                    />
+                );
+            }
+        }
+        
+        const btnHeaderStyle = "flex items-center gap-2 bg-dark-card border border-dark-border px-3 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm";
+        const dropdownItemStyle = "block w-full text-left px-4 py-2 text-sm text-dark-text hover:bg-dark-border/50 rounded-md cursor-pointer";
+
+        return (
+            <>
+                <header className="flex justify-between items-center mb-8">
+                    <div>
+                        {/* Title will be inside the view */}
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <NotificationBell notifications={userNotifications} onMarkAsRead={markNotificationAsRead} />
+                        <UserProfileDropdown company={activeCompany} onEditProfile={() => setCompanyFormOpen(true)} onChangePassword={() => setChangePasswordModalOpen(true)} onLogout={onLogout} onManageTeam={() => setTeamManagementOpen(true)} />
+                    </div>
+                </header>
+                <div className="animate-fade-in">
+                    <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+                        <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Pipeline de Prospecção - Visão Geral</h1>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button onClick={() => setView('prospect_analysis')} className={btnHeaderStyle}><BullseyeIcon className="w-4 h-4" />Análise de Prospecção</button>
+                            {toolboxUrl && <button onClick={() => setIsToolboxOpen(true)} className={btnHeaderStyle}><ToolboxIcon className="w-4 h-4" />ToolBox Triad3</button>}
+                            <div className="relative" ref={prospectSettingsRef}>
+                                <button onClick={() => setIsProspectSettingsOpen(prev => !prev)} className={btnHeaderStyle}><CogIcon className="w-4 h-4" />Configurar ProspectAI</button>
+                                {isProspectSettingsOpen && (
+                                    <div className="absolute top-full right-0 mt-2 w-60 bg-dark-card border border-dark-border rounded-lg shadow-lg z-10 p-2">
+                                        <a onClick={() => { setView('pipeline_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Editor de Pipeline (Farm)</a>
+                                        <a onClick={() => { setView('hunter_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Modo Hunter</a>
+                                        <a onClick={() => { setView('goal_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Metas</a>
+                                        <a onClick={() => { setView('business_hours_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Horário de Funcionamento</a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p className="mb-8 text-dark-secondary">Selecione um vendedor para visualizar seu pipeline individual.</p>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                        {companySalespeople.map(salesperson => (
+                            <Card key={salesperson.id} onClick={() => handleSalespersonSelect(salesperson)} 
+                                className="p-6 rounded-2xl text-center cursor-pointer transition-transform duration-300 hover:scale-105 hover:border-dark-primary bg-dark-card-active border-transparent border-2">
+                                <img src={salesperson.avatarUrl} alt={salesperson.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-dark-border"/>
+                                <h4 className="font-bold text-lg text-dark-text">{salesperson.name}</h4>
+                                <p className="text-sm text-dark-secondary">{salesperson.role}</p>
+                            </Card>
+                        ))}
+                    </div>
+                    {isToolboxOpen && toolboxUrl && (
+                        <ToolboxViewer url={toolboxUrl} onClose={() => setIsToolboxOpen(false)} />
+                    )}
+                </div>
+                 <Modal isOpen={isCompanyFormOpen} onClose={() => setCompanyFormOpen(false)}><CompanyForm initialData={activeCompany} onClose={() => setCompanyFormOpen(false)} /></Modal>
+                <Modal isOpen={isChangePasswordModalOpen} onClose={() => setChangePasswordModalOpen(false)}><ChangePasswordForm onClose={() => setChangePasswordModalOpen(false)} /></Modal>
+                <Modal isOpen={isTeamManagementOpen} onClose={() => setTeamManagementOpen(false)} maxWidthClass="max-w-3xl"><SalesTeamManagement teamMembers={teamMembers.filter(tm => tm.companyId === companyId)} onClose={() => setTeamManagementOpen(false)} onDeleteMember={handleDeleteMemberRequest} companyId={companyId} /></Modal>
+            </>
+        )
+    }
+
 
     return (
         <div className="container mx-auto">
@@ -202,7 +314,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 isOverdueFilterActive={isOverdueFilterActive}
                 onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                 onAdvancedFilterChange={setFilters}
-                activeAdvancedFiltersCount={Object.values(filters).reduce((acc, val) => acc + val.length, 0)}
+                // @-fix: Use Array.isArray() as a type guard before accessing `val.length` on a value of type `unknown`.
+                activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                 selectedSalespersonId={selectedSalespersonId}
                 onSalespersonSelect={setSelectedSalespersonId}
                 stockView={stockView}

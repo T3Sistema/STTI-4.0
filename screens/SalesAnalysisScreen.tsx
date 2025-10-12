@@ -75,8 +75,8 @@ const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // @-fix: Corrected the .reduce() syntax to prevent arithmetic type errors by providing an initial value.
-        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum: number, m) => sum + m.cost, 0);
+        // FIX: Added initial value of 0 to the reduce function to prevent type errors on empty arrays.
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
     const averageProfit = totalSales > 0 ? totalProfit / totalSales : 0;
@@ -285,10 +285,10 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
             return defaultResult;
         }
 
-        const modelStats = filteredVehicles.reduce((acc: { [model: string]: { count: number, totalProfit: number } }, v) => {
+        const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
             // @-fix: Added initial value `0` to the reduce function to prevent arithmetic errors on empty maintenance arrays.
-            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum: number, m) => sum + m.cost, 0);
+            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
 

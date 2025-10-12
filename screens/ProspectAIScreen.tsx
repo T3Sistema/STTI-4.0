@@ -526,7 +526,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                     <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Pipeline de Prospecção</h1>
                 </div>
                  <div className="flex flex-wrap items-center justify-end gap-4">
-                     {!isManagerView && user.isHunterModeActive && onSwitchToHunter && (
+                     {user.isHunterModeActive && onSwitchToHunter && (
                         <button
                             onClick={onSwitchToHunter}
                             className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm text-dark-primary"

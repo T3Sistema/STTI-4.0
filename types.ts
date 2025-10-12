@@ -258,6 +258,7 @@ export interface HunterLead {
   lastActivity?: string;
   prospected_at?: string;
   appointment_at?: string;
+  details?: { [key: string]: any; };
 }
 
 

@@ -70,7 +70,7 @@ interface DataContextType {
     updatePipelineStage: (companyId: string, stage: Partial<PipelineStage> & { id: string }) => Promise<void>;
     deletePipelineStage: (companyId: string, stageId: string) => Promise<{ success: boolean; message?: string }>;
     uploadHunterLeads: (leads: any[]) => Promise<void>;
-    addHunterLead: (leadData: { name: string; phone: string; companyId: string; salespersonId: string; }) => Promise<void>;
+    addHunterLead: (leadData: { name: string; phone: string; companyId: string; salespersonId: string; details: Record<string, string>; }) => Promise<void>;
     updateHunterLead: (leadId: string, updates: any) => Promise<HunterLead>;
     updateMonitorSettings: (settings: Omit<MonitorSettings, 'id'>) => Promise<void>;
     addMonitorChatMessage: (message: Omit<MonitorChatMessage, 'id' | 'created_at'>) => Promise<void>;
@@ -206,6 +206,7 @@ const mapHunterLeadFromDB = (hl: any): HunterLead => ({
     lastActivity: hl.last_activity,
     prospected_at: hl.prospected_at,
     appointment_at: hl.appointment_at,
+    details: hl.details,
 });
 
 const mapGrupoFromDB = (g: any): GrupoEmpresarial => ({
@@ -1624,36 +1625,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    const addHunterLead = async (leadData: { name: string; phone: string; companyId: string; salespersonId: string; }) => {
-        const { name, phone, companyId, salespersonId } = leadData;
+    const addHunterLead = async (leadData: { name: string; phone: string; companyId: string; salespersonId: string; details: Record<string, string>; }) => {
+        const { name, phone, companyId, salespersonId, details } = leadData;
         const company = companies.find(c => c.id === companyId);
         if (!company) {
             throw new Error("Empresa não encontrada para adicionar o lead.");
         }
 
-        const primeiraTentativaStage = company.pipeline_stages.find(s => s.name === 'Primeira Tentativa');
         const novosLeadsStage = company.pipeline_stages.find(s => s.name === 'Novos Leads');
 
-        if (!primeiraTentativaStage || !novosLeadsStage) {
-            throw new Error("Pipeline não configurado corretamente. Etapas 'Novos Leads' ou 'Primeira Tentativa' não encontradas.");
+        if (!novosLeadsStage) {
+            throw new Error("Pipeline não configurado corretamente. Etapa 'Novos Leads' não encontrada.");
         }
 
-        // Verifica se o vendedor já tem um lead na etapa "Primeira Tentativa"
-        const isPrimeiraTentativaOccupied = hunterLeads.some(
-            lead => lead.salespersonId === salespersonId && lead.stage_id === primeiraTentativaStage.id
-        );
-
-        let targetStageId;
-        let prospectedAt = null;
-
-        if (isPrimeiraTentativaOccupied) {
-            // Se ocupado, envia para "Novos Leads"
-            targetStageId = novosLeadsStage.id;
-        } else {
-            // Se livre, envia diretamente para "Primeira Tentativa" e marca como prospectado
-            targetStageId = primeiraTentativaStage.id;
-            prospectedAt = new Date().toISOString();
-        }
+        // Leads criados pelo vendedor agora sempre vão para a etapa "Novos Leads"
+        const targetStageId = novosLeadsStage.id;
+        const prospectedAt = null;
 
         const now = new Date().toISOString();
         const newLeadData = {
@@ -1666,6 +1653,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             prospected_at: prospectedAt,
             last_activity: now,
             feedback: [],
+            details: details,
         };
         const { data, error } = await supabase.from('hunter_leads').insert(newLeadData).select().single();
         if (error) {

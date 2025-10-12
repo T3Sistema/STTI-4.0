@@ -384,6 +384,8 @@ const HunterLeadCard: React.FC<{
     const lastFeedback = lead.feedback?.length > 0 ? lead.feedback[lead.feedback.length - 1] : null;
     const sentiment = getFeedbackSentiment(lastFeedback?.text);
     const isNameEditable = lead.leadName.toLowerCase() === 'sem nome';
+    const hasDetails = lead.details && Object.keys(lead.details).length > 0;
+
 
     let borderColorClass = 'border-dark-border';
     if (isFinalized) {
@@ -457,30 +459,46 @@ const HunterLeadCard: React.FC<{
                         </div>
                     </div>
                 </div>
-                {!isNewLead && (
+
+                {(hasDetails || !isNewLead) && (
                     <div className="space-y-3 pt-3 border-t border-dark-border">
-                        <div className="flex items-center justify-between gap-2 text-sm text-dark-secondary">
-                            <div className="flex items-center gap-2">
-                                <PhoneIcon className="w-4 h-4" />
-                                <span className="text-sm font-normal leading-normal text-dark-text">{lead.leadPhone}</span>
-                            </div>
-                            <button onClick={handleCopyPhone} className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-md transition-colors ${isCopied ? 'bg-green-500/20 text-green-400' : 'bg-dark-border/50 hover:bg-dark-border'}`}>
-                                {isCopied ? <CheckIcon className="w-3 h-3"/> : <ClipboardIcon className="w-3 h-3" />}
-                                {isCopied ? 'Copiado!' : 'Copiar'}
-                            </button>
-                        </div>
-                        {lastFeedback && !isFinalized && (
-                            <div className={`p-2 rounded-lg border text-xs ${feedbackColorClasses[sentiment]}`}>
-                                <p className="font-bold uppercase tracking-wider mb-1 text-[10px]">Último Feedback:</p>
-                                <p className="italic text-white/90 truncate text-sm">"{lastFeedback.text}"</p>
+                        {hasDetails && (
+                             <div className="space-y-2">
+                                <h5 className="text-xs font-bold uppercase text-dark-secondary">Informações Adicionais:</h5>
+                                <ul className="list-disc list-inside space-y-1 text-sm text-dark-text">
+                                    {Object.values(lead.details!).map((value, index) => (
+                                        <li key={index}>{String(value)}</li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
-                        {isFinalized && (
-                            <div className="text-center">
-                                <p className={`text-sm font-bold ${lead.outcome === 'convertido' ? 'text-green-400' : 'text-red-400'}`}>
-                                {lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido'}
-                                </p>
-                            </div>
+                        {!isNewLead && (
+                            <>
+                                {hasDetails && <div className="border-t border-dark-border/50"></div>}
+                                <div className="flex items-center justify-between gap-2 text-sm text-dark-secondary">
+                                    <div className="flex items-center gap-2">
+                                        <PhoneIcon className="w-4 h-4" />
+                                        <span className="text-sm font-normal leading-normal text-dark-text">{lead.leadPhone}</span>
+                                    </div>
+                                    <button onClick={handleCopyPhone} className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-md transition-colors ${isCopied ? 'bg-green-500/20 text-green-400' : 'bg-dark-border/50 hover:bg-dark-border'}`}>
+                                        {isCopied ? <CheckIcon className="w-3 h-3"/> : <ClipboardIcon className="w-3 h-3" />}
+                                        {isCopied ? 'Copiado!' : 'Copiar'}
+                                    </button>
+                                </div>
+                                {lastFeedback && !isFinalized && (
+                                    <div className={`p-2 rounded-lg border text-xs ${feedbackColorClasses[sentiment]}`}>
+                                        <p className="font-bold uppercase tracking-wider mb-1 text-[10px]">Último Feedback:</p>
+                                        <p className="italic text-white/90 truncate text-sm">"{lastFeedback.text}"</p>
+                                    </div>
+                                )}
+                                {isFinalized && (
+                                    <div className="text-center">
+                                        <p className={`text-sm font-bold ${lead.outcome === 'convertido' ? 'text-green-400' : 'text-red-400'}`}>
+                                        {lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido'}
+                                        </p>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -706,12 +724,13 @@ const HunterScreen: React.FC<{ user: TeamMember, activeCompany: Company }> = ({ 
         { id: 'custom', label: 'Personalizado' },
     ];
     
-    const handleAddOwnLead = async (name: string, phone: string) => {
+    const handleAddOwnLead = async (name: string, phone: string, details: Record<string, string>) => {
         await addHunterLead({
             name,
             phone,
             companyId: activeCompany.id,
             salespersonId: user.id,
+            details,
         });
         alert('Lead cadastrado e adicionado à sua fila de prospecção!');
     };

@@ -286,7 +286,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-            // @-fix: Added an initial value of 0 to the reduce function to ensure the accumulator is a number.
+            // Fix: Added an initial value of 0 to the reduce function to ensure the accumulator is a number.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;

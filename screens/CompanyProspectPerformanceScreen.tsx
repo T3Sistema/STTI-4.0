@@ -249,7 +249,7 @@ const CompanyProspectPerformanceScreen: React.FC<PerformanceScreenProps> = ({ co
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-                <Kpi title="Total De Atendimentos" value={metrics.totalLeads.toString()} />
+                <Kpi title="Total De Atendimentos" value={filteredFarmLeads.length.toString()} />
                 <Kpi title="Leads Finalizados" value={metrics.totalFinalized.toString()} />
                 <Kpi title="Leads Convertidos" value={metrics.totalConverted.toString()} />
                 <Kpi title="Taxa de Sucesso (Finalizados)" value={`${metrics.conversionRate.toFixed(1)}%`} />

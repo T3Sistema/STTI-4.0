@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
-import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage, BusinessHours, ProspectAISettings } from '../types';
+import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage, BusinessHours, ProspectAISettings, LiveAgentConfig } from '../types';
 
 // DATA CONTEXT
 interface DataContextType {
@@ -21,6 +21,7 @@ interface DataContextType {
     gruposEmpresariais: GrupoEmpresarial[];
     monitorSettings: MonitorSettings | null;
     monitorChatHistory: MonitorChatMessage[];
+    liveAgentConfigs: LiveAgentConfig[];
     toolboxUrl: string | null;
     updateCompanyStatus: (id: string, isActive: boolean) => Promise<void>;
     addCompany: (companyData: Omit<Company, 'id' | 'isActive' | 'monthlySalesGoal' | 'pipeline_stages'>, password: string) => Promise<void>;
@@ -29,7 +30,7 @@ interface DataContextType {
     addVehicle: (vehicle: Omit<Vehicle, 'id'> & { maintenance: MaintenanceRecord[] }) => Promise<void>;
     updateVehicle: (vehicle: Vehicle & { maintenance: MaintenanceRecord[] }) => Promise<void>;
     deleteVehicle: (id: string) => Promise<void>;
-    addTeamMember: (teamMember: Omit<TeamMember, 'id' | 'companyId' | 'avatarUrl'>, companyId: string) => Promise<void>;
+    addTeamMember: (teamMember: Omit<TeamMember, 'id' | 'companyId' | 'avatarUrl' | 'encrypted_password'>, companyId: string) => Promise<void>;
     updateTeamMember: (teamMember: TeamMember) => Promise<void>;
     deleteTeamMember: (id: string) => Promise<void>;
     addReminder: (reminder: Omit<Reminder, 'id' | 'createdAt'>) => Promise<void>;
@@ -74,6 +75,7 @@ interface DataContextType {
     updateHunterLead: (leadId: string, updates: any) => Promise<HunterLead>;
     updateMonitorSettings: (settings: Omit<MonitorSettings, 'id'>) => Promise<void>;
     addMonitorChatMessage: (message: Omit<MonitorChatMessage, 'id' | 'created_at'>) => Promise<void>;
+    saveLiveAgentConfig: (config: Omit<LiveAgentConfig, 'id' | 'updatedAt'>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -295,6 +297,36 @@ const mapMaintenanceFromDB = (m: any): MaintenanceRecord => ({
     invoiceUrl: m.invoice_url
 });
 
+const mapLiveAgentConfigFromDB = (c: any): LiveAgentConfig => ({
+    id: c.id,
+    companyId: c.company_id,
+    // Section 1
+    agentName: c.agent_name || '',
+    companyProjectName: c.company_project_name || '',
+    agentRole: c.agent_role || '',
+    // Section 2
+    roleDescription: c.role_description || '',
+    mission: c.mission || '',
+    toneOfVoice: c.tone_of_voice || [],
+    // Section 3
+    mandatoryQuestions: c.mandatory_questions || [],
+    optionalQuestions: c.optional_questions || [],
+    greetingMessages: c.greeting_messages || '',
+    // Section 4
+    doRules: c.do_rules || [],
+    dontRules: c.dont_rules || [],
+    forbiddenWords: c.forbidden_words || '',
+    // Section 5
+    interactionExamples: c.interaction_examples || '',
+    // Section 6
+    finalSummaryFormat: c.final_summary_format || '',
+    // Section 7
+    finalNotes: c.final_notes || '',
+    // Section 8
+    serviceMode: c.service_mode || null,
+    updatedAt: c.updated_at,
+});
+
 
 const defaultPipelineStages: PipelineStage[] = [
   { id: crypto.randomUUID(), name: 'Novos Leads', stageOrder: 0, isFixed: true, isEnabled: true },
@@ -320,6 +352,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [gruposEmpresariais, setGruposEmpresariais] = useState<GrupoEmpresarial[]>([]);
     const [monitorSettings, setMonitorSettings] = useState<MonitorSettings | null>(null);
     const [monitorChatHistory, setMonitorChatHistory] = useState<MonitorChatMessage[]>([]);
+    const [liveAgentConfigs, setLiveAgentConfigs] = useState<LiveAgentConfig[]>([]);
     const [toolboxUrl, setToolboxUrl] = useState<string | null>(null);
 
     // Client-side only state for now
@@ -363,6 +396,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     { data: monitorSettingsData, error: monitorSettingsError },
                     { data: monitorChatHistoryData, error: monitorChatHistoryError },
                     { data: toolboxConfigData, error: toolboxConfigError },
+                    { data: liveAgentConfigsData, error: liveAgentConfigsError },
                 ] = await Promise.all([
                     supabase.from('companies').select('*').order('created_at', { ascending: true }),
                     supabase.from('team_members').select('*'), // Fetch all fields including settings
@@ -377,6 +411,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     supabase.from('monitor_settings').select('*').single(),
                     supabase.from('monitor_chat_history').select('*').order('created_at', { ascending: true }),
                     supabase.from('toolbox_config').select('url').single(),
+                    supabase.from('live_agent_configs').select('*'),
                 ]);
 
                 if (companiesError) throw companiesError;
@@ -391,6 +426,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (gruposError) throw gruposError;
                 if (monitorSettingsError) throw monitorSettingsError;
                 if (monitorChatHistoryError) throw monitorChatHistoryError;
+                if (liveAgentConfigsError) throw liveAgentConfigsError;
                 if (toolboxConfigError && toolboxConfigError.code !== 'PGRST116') {
                     console.error("Error fetching toolbox config:", toolboxConfigError);
                 }
@@ -403,6 +439,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const mappedProspects: ProspectAILead[] = (prospectaiData || []).map(mapProspectFromDB);
                 const mappedHunterLeads: HunterLead[] = (hunterLeadsData || []).map(mapHunterLeadFromDB);
                 const mappedGrupos: GrupoEmpresarial[] = (gruposData || []).map(mapGrupoFromDB);
+                const mappedLiveAgentConfigs: LiveAgentConfig[] = (liveAgentConfigsData || []).map(mapLiveAgentConfigFromDB);
 
                 const enrichedVehicles = mappedVehicles.map(vehicle => ({
                     ...vehicle,
@@ -420,6 +457,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setGruposEmpresariais(mappedGrupos || []);
                 setMonitorSettings(monitorSettingsData || null);
                 setMonitorChatHistory(monitorChatHistoryData || []);
+                setLiveAgentConfigs(mappedLiveAgentConfigs || []);
                 setToolboxUrl(toolboxConfigData?.url || null);
                 
                 const enrichedLogs = (logsData || []).map((log: any) => ({
@@ -472,6 +510,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const remindersSubscription = createSubscription('realtime:reminders', 'reminders', setReminders);
         const gruposSubscription = createSubscription('realtime:grupos_empresariais', 'grupos_empresariais', setGruposEmpresariais, mapGrupoFromDB);
         const chatSubscription = createSubscription('realtime:monitor_chat_history', 'monitor_chat_history', setMonitorChatHistory);
+        const liveAgentConfigsSubscription = createSubscription('realtime:live_agent_configs', 'live_agent_configs', setLiveAgentConfigs, mapLiveAgentConfigFromDB);
         
         const vehiclesSubscription = supabase.channel('realtime:vehicles')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vehicles' }, (payload) => {
@@ -542,6 +581,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           supabase.removeChannel(logsSubscription);
           supabase.removeChannel(monitorSettingsSubscription);
           supabase.removeChannel(toolboxSubscription);
+          supabase.removeChannel(liveAgentConfigsSubscription);
         };
     }, []);
 
@@ -883,7 +923,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await logActivity('VEHICLE_DELETED', `Veículo ${vehicleToDelete.brand} ${vehicleToDelete.model} removido.`, { companyId: vehicleToDelete.companyId });
     };
 
-    const addTeamMember = async (teamMemberData: Omit<TeamMember, 'id' | 'companyId' | 'avatarUrl'>, companyId: string) => {
+    const addTeamMember = async (teamMemberData: Omit<TeamMember, 'id' | 'companyId' | 'avatarUrl' | 'encrypted_password'>, companyId: string) => {
         const avatarUrl = 'https://aisfizoyfpcisykarrnt.supabase.co/storage/v1/object/public/molduras/Screenshot%202025-08-25%20182827.png';
         const newMemberData = {
             id: crypto.randomUUID(),
@@ -894,7 +934,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             monthly_sales_goal: teamMemberData.monthlySalesGoal,
             role: teamMemberData.role,
             avatar_url: avatarUrl,
-            encrypted_password: teamMemberData.encrypted_password,
+            encrypted_password: '123',
             is_hunter_mode_active: false,
         };
 
@@ -1750,6 +1790,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setMonitorChatHistory(prev => [...prev, data]);
         }
     };
+    
+    const saveLiveAgentConfig = async (config: Omit<LiveAgentConfig, 'id' | 'updatedAt'>) => {
+        const dbData = {
+            id: config.companyId, // Using companyId as the primary key
+            company_id: config.companyId,
+            agent_name: config.agentName,
+            company_project_name: config.companyProjectName,
+            agent_role: config.agentRole,
+            role_description: config.roleDescription,
+            mission: config.mission,
+            tone_of_voice: config.toneOfVoice,
+            mandatory_questions: config.mandatoryQuestions,
+            optional_questions: config.optionalQuestions,
+            greeting_messages: config.greetingMessages,
+            do_rules: config.doRules,
+            dont_rules: config.dontRules,
+            forbidden_words: config.forbiddenWords,
+            interaction_examples: config.interactionExamples,
+            final_summary_format: config.finalSummaryFormat,
+            final_notes: config.finalNotes,
+            service_mode: config.serviceMode,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase.from('live_agent_configs').upsert(dbData, { onConflict: 'id' });
+
+        if (error) {
+            console.error("Error saving Live Agent config:", error);
+            throw new Error("Não foi possível salvar a configuração do Agente LIVE.");
+        }
+    };
 
     const value: DataContextType = {
         isLoading,
@@ -1769,6 +1840,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         gruposEmpresariais,
         monitorSettings,
         monitorChatHistory,
+        liveAgentConfigs,
         toolboxUrl,
         updateCompanyStatus,
         addCompany,
@@ -1823,6 +1895,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateHunterLead,
         updateMonitorSettings,
         addMonitorChatMessage,
+        saveLiveAgentConfig,
     };
 
 

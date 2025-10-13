@@ -36,6 +36,7 @@ export { FilterIcon } from './FilterIcon';
 export { HistoryIcon } from './HistoryIcon';
 export { KeyIcon } from './KeyIcon';
 export { LinkIcon } from './LinkIcon';
+export { LiveIcon } from './LiveIcon';
 export { LockIcon } from './LockIcon';
 export { LogoutIcon } from './LogoutIcon';
 export { MegaphoneIcon } from './MegaphoneIcon';

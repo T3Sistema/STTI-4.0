@@ -17,6 +17,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
     monthlySalesGoal: 5,
     role: 'Vendedor' as TeamMember['role'],
   });
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (initialData) {
@@ -29,6 +30,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
       });
     } else {
       setFormData({ name: '', email: '', phone: '', monthlySalesGoal: 5, role: 'Vendedor' });
+      setError('');
     }
   }, [initialData]);
 
@@ -44,6 +46,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    setError('');
     if (initialData?.id) {
         updateTeamMember({
             ...initialData,
@@ -53,13 +56,14 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
             monthlySalesGoal: formData.role === 'Vendedor' ? formData.monthlySalesGoal : 0,
             role: formData.role,
         });
+        onClose();
     } else {
         addTeamMember({
           ...formData,
           monthlySalesGoal: formData.role === 'Vendedor' ? formData.monthlySalesGoal : 0,
         }, companyId);
+        onClose();
     }
-    onClose();
   };
 
   return (
@@ -77,7 +81,7 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
           className="w-full px-3 py-2 bg-dark-background border border-dark-border rounded-md focus:ring-dark-primary focus:border-dark-primary disabled:bg-dark-background/50 disabled:cursor-not-allowed"
           disabled={initialData?.role === 'Gestor'}
         >
-          {initialData?.role === 'Gestor' && <option value="Gestor">Gestor</option>}
+          <option value="Gestor">Gestor</option>
           <option value="Vendedor">Vendedor</option>
           <option value="Gestor de Tráfego">Gestor de Tráfego</option>
         </select>
@@ -135,6 +139,9 @@ const TeamMemberForm: React.FC<TeamMemberFormProps> = ({ initialData, onClose, c
           />
         </div>
       )}
+
+      {error && <p className="text-center text-sm text-red-400">{error}</p>}
+
 
       <div className="flex justify-end gap-3 pt-4">
         <button type="button" onClick={onClose} className="px-4 py-2 rounded-md bg-dark-border/50 hover:bg-dark-border transition-colors">Cancelar</button>

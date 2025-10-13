@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
@@ -39,6 +40,8 @@ import { ToolboxIcon } from '../components/icons/ToolboxIcon';
 import ToolboxViewer from '../components/ToolboxViewer';
 import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterScreen from './HunterScreen';
+import { LiveIcon } from '../components/icons/LiveIcon';
+import LiveAgentConfigScreen from './LiveAgentConfigScreen';
 
 interface DashboardScreenProps {
   onLogout: () => void;
@@ -58,7 +61,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const isProspectOnly = features.includes('prospectai') && !features.includes('estoque_inteligente');
 
     // State
-    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings'>(isProspectOnly ? 'prospectai' : 'dashboard');
+    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings' | 'live_agent_config'>(isProspectOnly ? 'prospectai' : 'dashboard');
     const [stockView, setStockView] = useState<'available' | 'sold'>('available');
     const [isCompanyFormOpen, setCompanyFormOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -205,6 +208,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     if (view === 'hunter_settings') return <HunterSettingsScreen salespeople={teamMembers.filter(tm => tm.companyId === companyId)} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} onUpdateSalesperson={updateTeamMember} />;
     if (view === 'goal_settings') return <GoalSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
     if (view === 'business_hours_settings') return <BusinessHoursSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
+    if (view === 'live_agent_config') return <LiveAgentConfigScreen companyId={companyId} onBack={() => setView('prospectai')} />;
 
     if (view === 'prospectai') {
         if (selectedProspectSalesperson) {
@@ -251,6 +255,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                         <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Pipeline de Prospecção - Visão Geral</h1>
                         <div className="flex flex-wrap items-center gap-2">
                             <button onClick={() => setView('prospect_analysis')} className={btnHeaderStyle}><BullseyeIcon className="w-4 h-4" />Análise de Prospecção</button>
+                            <button onClick={() => setView('live_agent_config')} className={btnHeaderStyle}>
+                                <LiveIcon className="w-4 h-4" />
+                                Configurar Agente LIVE
+                            </button>
                             {toolboxUrl && <button onClick={() => setIsToolboxOpen(true)} className={btnHeaderStyle}><ToolboxIcon className="w-4 h-4" />ToolBox Triad3</button>}
                             <div className="relative" ref={prospectSettingsRef}>
                                 <button onClick={() => setIsProspectSettingsOpen(prev => !prev)} className={btnHeaderStyle}><CogIcon className="w-4 h-4" />Configurar ProspectAI</button>

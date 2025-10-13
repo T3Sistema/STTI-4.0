@@ -291,6 +291,48 @@ export interface MonitorChatMessage {
   created_at: string;
 }
 
+export type LiveAgentToneOfVoice = 'acolhedor' | 'consultivo' | 'tecnico' | 'empreendedor' | 'motivador' | 'humanizado';
+export type LiveAgentServiceMode = 'consultivo' | 'comercial' | 'informativo' | 'suporte';
+
+export interface LiveAgentConfig {
+  id: string;
+  companyId: string;
+  
+  // 1. Identificação
+  agentName: string;
+  companyProjectName: string;
+  agentRole: string;
+
+  // 2. Apresentação
+  roleDescription: string;
+  mission: string;
+  toneOfVoice: LiveAgentToneOfVoice[];
+
+  // 3. Fluxo
+  mandatoryQuestions: string[];
+  optionalQuestions: string[];
+  greetingMessages: string;
+
+  // 4. Regras
+  doRules: string[];
+  dontRules: string[];
+  forbiddenWords: string;
+
+  // 5. Exemplos
+  interactionExamples: string;
+
+  // 6. Resumo
+  finalSummaryFormat: string;
+
+  // 7. Notas Finais
+  finalNotes: string;
+
+  // 8. Opcionais
+  serviceMode: LiveAgentServiceMode | null;
+
+  updatedAt?: string;
+}
+
 
 export type Theme = 'light' | 'dark';
 export type View = 'admin' | 'dashboard' | 'grupos' | 'monitor_settings';

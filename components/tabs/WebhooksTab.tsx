@@ -5,6 +5,7 @@ const WebhooksTab: React.FC = () => {
     const { getN8nWebhook, updateN8nWebhook } = useData();
     const [webhookUrl, setWebhookUrl] = useState('');
     const [appBaseUrl, setAppBaseUrl] = useState('');
+    const [reportWebhookUrl, setReportWebhookUrl] = useState(''); // Novo estado
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -13,12 +14,14 @@ const WebhooksTab: React.FC = () => {
         const fetchUrls = async () => {
             setIsLoading(true);
             try {
-                const [webhook, base] = await Promise.all([
+                const [webhook, base, reportWebhook] = await Promise.all([
                     getN8nWebhook('password_reset'),
                     getN8nWebhook('app_base_url'),
+                    getN8nWebhook('RELATORIO_DIARIO_PROSPECCAO'), // Novo webhook
                 ]);
                 setWebhookUrl(webhook || '');
                 setAppBaseUrl(base || '');
+                setReportWebhookUrl(reportWebhook || ''); // Seta o novo estado
             } catch (err) {
                 setError('Falha ao carregar configurações.');
             } finally {
@@ -37,6 +40,7 @@ const WebhooksTab: React.FC = () => {
             await Promise.all([
                 updateN8nWebhook('password_reset', webhookUrl),
                 updateN8nWebhook('app_base_url', appBaseUrl),
+                updateN8nWebhook('RELATORIO_DIARIO_PROSPECCAO', reportWebhookUrl), // Salva o novo webhook
             ]);
             setSuccess('Configurações salvas com sucesso!');
         } catch (err: any) {
@@ -80,6 +84,24 @@ const WebhooksTab: React.FC = () => {
                     disabled={isLoading}
                 />
             </div>
+            
+             <div>
+                <label htmlFor="reportWebhookUrl" className="label-style">URL do Webhook do Relatório Diário (n8n)</label>
+                <p className="text-xs text-dark-secondary/70 mb-2 -mt-1">
+                    Endpoint que receberá os dados de prospecção das empresas todos os dias às 18:00.
+                </p>
+                <input
+                    type="url"
+                    id="reportWebhookUrl"
+                    value={reportWebhookUrl}
+                    onChange={e => setReportWebhookUrl(e.target.value)}
+                    required
+                    className="input-style"
+                    placeholder="https://seu.n8n.cloud/webhook/relatorio-diario"
+                    disabled={isLoading}
+                />
+            </div>
+
 
             {error && <p className="text-sm text-red-400 text-center">{error}</p>}
             {success && <p className="text-sm text-green-400 text-center">{success}</p>}

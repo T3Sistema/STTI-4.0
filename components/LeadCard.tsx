@@ -200,7 +200,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
 
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            // @-fix: Using a standard for loop to iterate over the FileList, which is not a true array and can cause typing issues with for...of loops. This ensures `file` is correctly typed as a File object.
+            // @-fix: Using a standard for loop to iterate over the FileList, which is not a true array. This ensures `file` is correctly typed as a File object.
             for (let i = 0; i < e.target.files.length; i++) {
                 const file = e.target.files[i];
                 if (file) {

@@ -1,6 +1,5 @@
 
-
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, ChangeEvent } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
 import KpiCard from '../components/KpiCard';
@@ -42,18 +41,46 @@ import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterScreen from './HunterScreen';
 import { LiveIcon } from '../components/icons/LiveIcon';
 import LiveAgentConfigScreen from './LiveAgentConfigScreen';
+import { DownloadIcon, UploadIcon } from '../components/icons';
+import * as XLSX from 'xlsx';
 
 interface DashboardScreenProps {
   onLogout: () => void;
   companyId: string;
 }
 
+interface ParsedLead {
+    nome: string;
+    telefone: string;
+}
+
+const parseSpreadsheet = (data: string | ArrayBuffer, type: 'string' | 'array'): ParsedLead[] => {
+    const workbook = XLSX.read(data, { type });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+        throw new Error("Nenhuma planilha encontrada no arquivo.");
+    }
+    const worksheet = workbook.Sheets[sheetName];
+    const json: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+    const mappedLeads = json.map(row => ({
+        nome: String(row.nome || row.name || "").trim(),
+        telefone: String(row.telefone || row.phone || "").trim()
+    })).filter(lead => lead.nome && lead.telefone);
+
+    if (mappedLeads.length === 0) {
+        throw new Error('Nenhum lead válido encontrado. Verifique se a planilha possui as colunas "nome" e "telefone" (ou "name" e "phone") e se não está vazia.');
+    }
+    
+    return mappedLeads;
+};
+
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }) => {
     const {
         companies, vehicles, teamMembers, reminders, notifications, prospectaiLeads, hunterLeads,
         markNotificationAsRead, addVehicle, updateVehicle, deleteVehicle, markVehicleAsSold,
         assignSalesperson, toggleVehiclePriority, updateCompany, deleteTeamMember, toggleVehicleAdStatus,
-        updateTeamMember, toolboxUrl,
+        updateTeamMember, toolboxUrl, uploadHunterLeads,
     } = useData();
     
     const activeCompany = useMemo(() => companies.find(c => c.id === companyId), [companies, companyId]);
@@ -95,6 +122,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const [isProspectSettingsOpen, setIsProspectSettingsOpen] = useState(false);
     const prospectSettingsRef = useRef<HTMLDivElement>(null);
 
+    // State for Hunter Lead Upload
+    const [isUploadHunterModalOpen, setUploadHunterModalOpen] = useState(false);
+    const [uploadStep, setUploadStep] = useState(1);
+    const [parsedLeads, setParsedLeads] = useState<ParsedLead[]>([]);
+    const [assignments, setAssignments] = useState<Record<number, string>>({});
+    const [isUploading, setIsUploading] = useState(false);
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (prospectSettingsRef.current && !prospectSettingsRef.current.contains(event.target as Node)) {
@@ -113,6 +147,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     
     const vehiclesInStock = useMemo(() => companyVehicles.filter(v => v.status === 'available'), [companyVehicles]);
     const vehiclesSold = useMemo(() => companyVehicles.filter(v => v.status === 'sold'), [companyVehicles]);
+    
+    const activeHunters = useMemo(() => companySalespeople.filter(sp => sp.isHunterModeActive), [companySalespeople]);
 
     const vehiclesToDisplay = useMemo(() => {
         let baseVehicles = stockView === 'available' ? vehiclesInStock : vehiclesSold;
@@ -195,6 +231,126 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const handleBackToSalespersonList = () => {
         setSelectedProspectSalesperson(null);
         setPipelineView(null);
+    };
+
+    // Hunter Upload Handlers
+    const handleCloseUploadModal = () => {
+        setUploadHunterModalOpen(false);
+        setTimeout(() => {
+            setUploadStep(1);
+            setParsedLeads([]);
+            setAssignments({});
+            setIsUploading(false);
+        }, 300);
+    };
+
+    const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        const reader = new FileReader();
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        
+        reader.onload = async (event) => {
+            try {
+                if (!event.target?.result) {
+                    throw new Error("Não foi possível ler o arquivo.");
+                }
+                
+                const leads = parseSpreadsheet(event.target.result, fileExtension === 'csv' ? 'string' : 'array');
+                
+                setParsedLeads(leads);
+                setAssignments({});
+                setUploadStep(2);
+
+            } catch (err: any) {
+                alert(`Erro ao processar arquivo: ${err.message}`);
+            } finally {
+                setIsUploading(false);
+            }
+        };
+
+        if (fileExtension === 'csv') {
+            reader.readAsText(file);
+        } else if (fileExtension === 'xls' || fileExtension === 'xlsx') {
+            reader.readAsArrayBuffer(file);
+        } else {
+            alert("Formato de arquivo não suportado. Use .csv, .xls ou .xlsx");
+            setIsUploading(false);
+            return;
+        }
+        
+        e.target.value = '';
+    };
+
+    const handleAssignLead = (leadIndex: number, salespersonId: string) => {
+        setAssignments(prev => {
+            const newAssignments = { ...prev };
+            if (salespersonId) newAssignments[leadIndex] = salespersonId;
+            else delete newAssignments[leadIndex];
+            return newAssignments;
+        });
+    };
+
+    const handleDistributeRemainingEvenly = () => {
+        const unassignedLeadIndices = parsedLeads.map((_, index) => index).filter(index => !assignments[index]);
+        if (activeHunters.length === 0 || unassignedLeadIndices.length === 0) return;
+
+        const newAssignments = { ...assignments };
+        unassignedLeadIndices.forEach((leadIndex, i) => {
+            newAssignments[leadIndex] = activeHunters[i % activeHunters.length].id;
+        });
+        setAssignments(newAssignments);
+    };
+
+    const assignedCounts = useMemo(() => {
+        const counts = activeHunters.reduce((acc, sp) => ({ ...acc, [sp.id]: 0 }), {} as Record<string, number>);
+        Object.values(assignments).forEach(spId => { if (counts[spId] !== undefined) counts[spId]++; });
+        return counts;
+    }, [assignments, activeHunters]);
+
+    const totalDistributed = Object.keys(assignments).length;
+
+    const handleConfirmDistribution = async () => {
+        if (!activeCompany) return;
+        const novosLeadsStage = activeCompany.pipeline_stages.find(s => s.name === 'Novos Leads');
+        if (!novosLeadsStage) {
+            alert("Pipeline de prospecção não configurado. Etapa 'Novos Leads' não encontrada.");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const leadsToUpload = parsedLeads.map((lead, index) => ({
+                company_id: companyId,
+                salesperson_id: assignments[index] || null,
+                lead_name: lead.nome,
+                lead_phone: lead.telefone,
+                source: 'Base da Empresa' as const,
+                stage_id: novosLeadsStage.id,
+            }));
+            
+            await uploadHunterLeads(leadsToUpload);
+            alert(`${leadsToUpload.length} leads foram carregados com sucesso!`);
+            handleCloseUploadModal();
+        } catch (err) {
+            alert(`Falha ao carregar leads: ${(err as Error).message}`);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+     const handleDownloadTemplate = () => {
+        const csvContent = "nome,telefone\nJoão da Silva,11987654321\nMaria Oliveira,21912345678";
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "exemplo_leads.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     if (!activeCompany) return <div>Carregando...</div>;
@@ -317,12 +473,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 onOpenMarketingModal={() => setMarketingModalOpen(true)}
                 onOpenLembrAI={() => setView('lembrai')}
                 onOpenProspectAI={() => setView('prospectai')}
+                onUploadHunterLeads={() => setUploadHunterModalOpen(true)}
                 salespeople={companySalespeople} 
                 vehicles={vehiclesInStock}
                 isOverdueFilterActive={isOverdueFilterActive}
                 onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                 onAdvancedFilterChange={setFilters}
-                // @-fix: Use Array.isArray() as a type guard before accessing `val.length` on a value of type `unknown`.
+                // FIX: Use Array.isArray() as a type guard before accessing `val.length` on `unknown`.
                 activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                 selectedSalespersonId={selectedSalespersonId}
                 onSalespersonSelect={setSelectedSalespersonId}
@@ -334,6 +491,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 showMarketing={features.includes('marketing')}
                 showLembrAI={features.includes('estoque_inteligente')}
                 showProspectAI={features.includes('prospectai')}
+                showUploadHunterLeads={features.includes('prospectai')}
                 showStockViewToggle={features.includes('estoque_inteligente')}
             />
             
@@ -369,7 +527,105 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
             {expandedImageUrl && <ImageLightbox imageUrl={expandedImageUrl} onClose={() => setExpandedImageUrl(null)} />}
             <Modal isOpen={isTeamManagementOpen} onClose={() => setTeamManagementOpen(false)} maxWidthClass="max-w-3xl"><SalesTeamManagement teamMembers={teamMembers.filter(tm => tm.companyId === companyId)} onClose={() => setTeamManagementOpen(false)} onDeleteMember={handleDeleteMemberRequest} companyId={companyId} /></Modal>
             <ConfirmationModal isOpen={isDeleteTeamMemberConfirmOpen} onClose={() => setDeleteTeamMemberConfirmOpen(false)} onConfirm={confirmDeleteMember} title="Confirmar Exclusão"><p>Tem certeza que deseja remover este membro da equipe? Esta ação não pode ser desfeita.</p></ConfirmationModal>
+            
+            <Modal isOpen={isUploadHunterModalOpen} onClose={handleCloseUploadModal} fullScreen>
+                <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8">
+                {uploadStep === 1 && (
+                     <div className="flex-grow flex flex-col justify-center max-w-2xl mx-auto w-full">
+                        <h2 className="text-2xl font-bold text-center mb-4">Subir Base de Dados (Hunter)</h2>
+                        <p className="text-center text-dark-secondary mb-6">Faça o upload de um arquivo .csv, .xls ou .xlsx com as colunas: `nome`, `telefone`.</p>
+                        <button onClick={handleDownloadTemplate} className="w-full mb-4 flex items-center justify-center gap-2 text-sm font-semibold py-2 px-3 rounded-lg bg-dark-border/50 hover:bg-dark-border transition-colors">
+                            <DownloadIcon className="w-4 h-4" />
+                            Baixar Planilha Exemplo (.csv)
+                        </button>
+                        <div className="w-full h-32 flex items-center justify-center bg-dark-background border-2 border-dashed border-dark-border rounded-md">
+                            <label htmlFor="csv-upload-manager" className="cursor-pointer flex flex-col items-center gap-2 text-dark-secondary">
+                            <UploadIcon className="w-8 h-8"/>
+                            <span>Clique para selecionar o arquivo</span>
+                            </label>
+                            <input id="csv-upload-manager" type="file" className="sr-only" accept=".csv,.xls,.xlsx" onChange={handleFileUpload} disabled={isUploading} />
+                        </div>
+                        {isUploading && <p className="text-center text-dark-primary mt-4">Processando arquivo...</p>}
+                    </div>
+                )}
+                {uploadStep === 2 && (
+                    <div className="flex-grow flex flex-col min-h-0">
+                        <div className="flex-shrink-0">
+                            <h2 className="text-2xl font-bold text-center mb-2">Distribuição de Leads</h2>
+                            <p className="text-center text-dark-secondary mb-6">
+                                Você carregou <strong className="text-dark-text">{parsedLeads.length}</strong> leads. Atribua-os aos vendedores com Modo Hunter ativo.
+                            </p>
+                            
+                            <div className="bg-dark-background p-3 rounded-lg border border-dark-border mb-4">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                    {activeHunters.map(sp => (
+                                        <div key={sp.id} className="flex items-center gap-2 text-sm">
+                                            <img src={sp.avatarUrl} alt={sp.name} className="w-6 h-6 rounded-full" />
+                                            <span>{sp.name.split(' ')[0]}:</span>
+                                            <span className="font-bold text-dark-primary">{assignedCounts[sp.id] || 0}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                 <p className="text-center font-bold text-sm mt-2 pt-2 border-t border-dark-border">Total Atribuído: {totalDistributed} / {parsedLeads.length}</p>
+                            </div>
 
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                <button onClick={handleDistributeRemainingEvenly} className="btn-secondary text-xs">Distribuir Restantes Igualmente</button>
+                                <button onClick={() => setAssignments({})} className="btn-secondary text-xs">Limpar Atribuições</button>
+                            </div>
+                        </div>
+
+                        <div className="flex-grow overflow-y-auto pr-2 min-h-0">
+                             <table className="w-full text-left text-sm">
+                                <thead className="sticky top-0 bg-dark-card/80 backdrop-blur-sm">
+                                    <tr>
+                                        <th className="p-2">#</th>
+                                        <th className="p-2">Nome</th>
+                                        <th className="p-2">Telefone</th>
+                                        <th className="p-2 w-48">Atribuir Para</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {parsedLeads.map((lead, index) => (
+                                        <tr key={index} className="border-b border-dark-border">
+                                            <td className="p-2 text-dark-secondary">{index + 1}</td>
+                                            <td className="p-2 font-medium">{lead.nome}</td>
+                                            <td className="p-2 text-dark-secondary">{lead.telefone}</td>
+                                            <td className="p-2">
+                                                <select
+                                                    className="w-full px-3 py-2 bg-dark-background border border-dark-border rounded-md text-xs"
+                                                    value={assignments[index] || ''}
+                                                    onChange={(e) => handleAssignLead(index, e.target.value)}
+                                                >
+                                                    <option value="">Selecione...</option>
+                                                    {activeHunters.map(sp => (
+                                                        <option key={sp.id} value={sp.id}>{sp.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
+                             <button onClick={handleCloseUploadModal} className="btn-secondary">Cancelar</button>
+                             <button onClick={handleConfirmDistribution} disabled={isUploading} className="btn-primary">
+                                {isUploading ? 'Carregando...' : `Confirmar e Carregar ${parsedLeads.length} Leads`}
+                            </button>
+                        </div>
+                    </div>
+                )}
+                </div>
+                <style>{`
+                    .btn-primary { padding: 0.5rem 1rem; border-radius: 0.375rem; background-color: #00D1FF; color: #0A0F1E; font-weight: bold; transition: opacity 0.2s; }
+                    .btn-primary:hover { opacity: 0.9; }
+                    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+                    .btn-secondary { padding: 0.5rem 1rem; border-radius: 0.375rem; background-color: #243049; color: #E0E0E0; font-weight: bold; transition: background-color 0.2s; }
+                    .btn-secondary:hover { background-color: #3e4c6e; }
+                `}</style>
+            </Modal>
         </div>
     );
 }

@@ -27,7 +27,6 @@ interface SalespersonDashboardScreenProps {
   onLogout: () => void;
 }
 
-// @-fix: Defined the StockView type locally for this component's specific states.
 type StockView = 'assigned' | 'all';
 
 const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({ user, onLogout }) => {
@@ -326,7 +325,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                     isOverdueFilterActive={isOverdueFilterActive}
                     onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                     onAdvancedFilterChange={setFilters}
-                    // @-fix: Use Array.isArray(val) as a type guard before accessing `val.length`.
+                    // FIX: Use Array.isArray(val) as a type guard before accessing `val.length` on `unknown`.
                     activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                     selectedSalespersonId={selectedSalespersonId}
                     onSalespersonSelect={setSelectedSalespersonId}

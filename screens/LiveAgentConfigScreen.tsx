@@ -3,6 +3,7 @@ import { useData } from '../hooks/useMockData';
 import { LiveAgentConfig, LiveAgentToneOfVoice, LiveAgentServiceMode } from '../types';
 import Card from '../components/Card';
 import { LiveIcon, PlusIcon, TrashIcon } from '../components/icons';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 interface LiveAgentConfigScreenProps {
     companyId: string;
@@ -105,6 +106,7 @@ const EditableList: React.FC<{ label: string; items: string[]; setItems: (newIte
 const LiveAgentConfigScreen: React.FC<LiveAgentConfigScreenProps> = ({ companyId, onBack }) => {
     const { liveAgentConfigs, saveLiveAgentConfig } = useData();
     const [isLoading, setIsLoading] = useState(false);
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [config, setConfig] = useState<Omit<LiveAgentConfig, 'id' | 'companyId' | 'updatedAt'>>({
         agentName: '', companyProjectName: '', agentRole: '', roleDescription: '', mission: '',
         toneOfVoice: [], mandatoryQuestions: [], optionalQuestions: [], greetingMessages: '',
@@ -131,8 +133,13 @@ const LiveAgentConfigScreen: React.FC<LiveAgentConfigScreenProps> = ({ companyId
         handleChange('toneOfVoice', newTones);
     };
 
-    const handleSubmit = async (e: FormEvent) => {
+    const handleSaveRequest = (e: FormEvent) => {
         e.preventDefault();
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleConfirmSave = async () => {
+        setIsConfirmModalOpen(false);
         setIsLoading(true);
         try {
             await saveLiveAgentConfig({ ...config, companyId });
@@ -161,7 +168,7 @@ const LiveAgentConfigScreen: React.FC<LiveAgentConfigScreenProps> = ({ companyId
                 </p>
             </header>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSaveRequest} className="space-y-6">
                 <SectionCard title="1. Identificação do Agente">
                     <FormField label="Nome do Agente" name="agentName" value={config.agentName} onChange={handleChange} required />
                     <FormField label="Nome da Empresa / Projeto" name="companyProjectName" value={config.companyProjectName} onChange={handleChange} required />
@@ -229,6 +236,18 @@ const LiveAgentConfigScreen: React.FC<LiveAgentConfigScreenProps> = ({ companyId
                     </button>
                 </div>
             </form>
+
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => setIsConfirmModalOpen(false)}
+                onConfirm={handleConfirmSave}
+                title="Confirmar Alterações do Agente"
+                confirmButtonText="Confirmar e Atualizar"
+                confirmButtonClass="bg-green-600 hover:bg-green-700"
+            >
+                Atenção: A memória do agente será apagada para que essa nova atualização seja aplicada com sucesso. Deseja continuar?
+            </ConfirmationModal>
+
             <style>{`.input-field { width: 100%; padding: 0.75rem 1rem; background-color: #0A0F1E; border: 1px solid #243049; border-radius: 0.5rem; color: #E0E0E0; font-size: 0.875rem; } .input-field:focus { outline: none; box-shadow: 0 0 0 2px #00D1FF; }`}</style>
         </div>
     );

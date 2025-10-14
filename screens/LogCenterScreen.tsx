@@ -95,8 +95,8 @@ const LogCenterScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             return acc;
         }, {} as Record<string, number>);
 
+        // @-fix: Cast count to number to resolve TypeScript error where the array was inferred as (string | number)[].
         return Object.entries(logCounts)
-            // @-fix: Cast count to number to resolve TypeScript error.
             .map(([timestamp, count]): [number, number] => [new Date(timestamp).getTime(), count as number])
             .sort((a, b) => a[0] - b[0]);
 

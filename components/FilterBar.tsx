@@ -9,6 +9,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { MegaphoneIcon } from './icons/MegaphoneIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { BullseyeIcon } from './icons/BullseyeIcon';
+import { UploadIcon } from './icons';
 
 
 export interface AdvancedFilters {
@@ -27,6 +28,7 @@ interface FilterBarProps {
     onOpenLembrAI?: () => void;
     onOpenMarketingModal?: () => void;
     onOpenProspectAI?: () => void;
+    onUploadHunterLeads?: () => void;
     salespeople: TeamMember[];
     vehicles: Vehicle[];
     isOverdueFilterActive: boolean;
@@ -45,11 +47,12 @@ interface FilterBarProps {
     showMarketing?: boolean;
     showLembrAI?: boolean;
     showProspectAI?: boolean;
+    showUploadHunterLeads?: boolean;
     showStockViewToggle?: boolean;
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({ 
-    onAddVehicle, onOpenSalesAnalysis, onOpenProspectAnalysis, onOpenMarketingModal, onOpenLembrAI, onOpenProspectAI, salespeople,
+    onAddVehicle, onOpenSalesAnalysis, onOpenProspectAnalysis, onOpenMarketingModal, onOpenLembrAI, onOpenProspectAI, onUploadHunterLeads, salespeople,
     vehicles, isOverdueFilterActive, onOverdueFilterToggle, onAdvancedFilterChange,
     activeAdvancedFiltersCount, selectedSalespersonId, onSalespersonSelect,
     areFiltersDisabled = false, stockView, onStockViewChange, enabledFeatures,
@@ -58,6 +61,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
     showMarketing = true,
     showLembrAI = true,
     showProspectAI = true,
+    showUploadHunterLeads = false,
     showStockViewToggle = true,
 }) => {
     const [isAdvancedFilterOpen, setAdvancedFilterOpen] = useState(false);
@@ -225,6 +229,11 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {enabledFeatures?.includes('estoque_inteligente') && showAddVehicle && onAddVehicle && (
                     <button onClick={onAddVehicle} className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm">
                         <PlusIcon className="w-4 h-4" /> Cadastrar Veículo
+                    </button>
+                )}
+                 {enabledFeatures?.includes('prospectai') && showUploadHunterLeads && onUploadHunterLeads && (
+                    <button onClick={onUploadHunterLeads} className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-medium text-sm">
+                        <UploadIcon className="w-4 h-4" /> Subir Base Hunter
                     </button>
                 )}
                 {enabledFeatures?.includes('estoque_inteligente') && showLembrAI && onOpenLembrAI && (

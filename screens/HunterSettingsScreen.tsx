@@ -21,42 +21,24 @@ interface ParsedLead {
     telefone: string;
 }
 
-const parseCSV = (content: string): ParsedLead[] => {
-    const lines = content.split('\n').filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-
-    const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
-    const nameIndex = header.indexOf('nome') !== -1 ? header.indexOf('nome') : header.indexOf('name');
-    const phoneIndex = header.indexOf('telefone') !== -1 ? header.indexOf('telefone') : header.indexOf('phone');
-
-    if (nameIndex === -1 || phoneIndex === -1) {
-        throw new Error('Arquivo CSV inválido. As colunas "nome" e "telefone" (ou "name" e "phone") são obrigatórias.');
-    }
-
-    return lines.slice(1).map(line => {
-        const values = line.split(',');
-        return {
-            nome: values[nameIndex]?.trim().replace(/"/g, ''),
-            telefone: values[phoneIndex]?.trim().replace(/"/g, ''),
-        };
-    }).filter(item => item.nome && item.telefone);
-};
-
-const parseXLSX = (data: ArrayBuffer): ParsedLead[] => {
-    const workbook = XLSX.read(data, { type: 'array' });
+const parseSpreadsheet = (data: string | ArrayBuffer, type: 'string' | 'array'): ParsedLead[] => {
+    const workbook = XLSX.read(data, { type });
     const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+        throw new Error("Nenhuma planilha encontrada no arquivo.");
+    }
     const worksheet = workbook.Sheets[sheetName];
-    const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+    const json: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
     const mappedLeads = json.map(row => ({
-        nome: row.nome || row.name,
-        telefone: String(row.telefone || row.phone || '')
+        nome: String(row.nome || row.name || "").trim(),
+        telefone: String(row.telefone || row.phone || "").trim()
     })).filter(lead => lead.nome && lead.telefone);
 
     if (mappedLeads.length === 0) {
-        throw new Error('Nenhum lead válido encontrado. Verifique se a planilha possui as colunas "nome" e "telefone" (ou "name" e "phone").');
+        throw new Error('Nenhum lead válido encontrado. Verifique se a planilha possui as colunas "nome" e "telefone" (ou "name" e "phone") e se não está vazia.');
     }
-
+    
     return mappedLeads;
 };
 
@@ -78,17 +60,20 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
 
     const [goals, setGoals] = useState<Record<string, { type: 'daily' | 'weekly' | 'monthly'; value: number }>>({});
     const [isSavingGoals, setIsSavingGoals] = useState(false);
+    
+    // Filter to get only salespeople (Vendedores) from the prop
+    const vendorsOnly = useMemo(() => salespeople.filter(sp => sp.role === 'Vendedor'), [salespeople]);
 
-    const activeHunters = useMemo(() => salespeople.filter(sp => sp.isHunterModeActive), [salespeople]);
+    const activeHunters = useMemo(() => vendorsOnly.filter(sp => sp.isHunterModeActive), [vendorsOnly]);
     const unassignedLeads = useMemo(() => hunterLeads.filter(l => !l.salespersonId), [hunterLeads]);
 
     useEffect(() => {
-        const initialGoals = salespeople.reduce((acc, sp) => {
+        const initialGoals = vendorsOnly.reduce((acc, sp) => {
             acc[sp.id] = sp.prospectAISettings?.hunter_goals || { type: 'monthly', value: 0 };
             return acc;
         }, {} as Record<string, { type: 'daily' | 'weekly' | 'monthly', value: number }>);
         setGoals(initialGoals);
-    }, [salespeople]);
+    }, [vendorsOnly]);
 
     const toggleAccess = async (salesperson: TeamMember) => {
         const updatedSalesperson = {
@@ -122,22 +107,16 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
 
         setIsUploading(true);
         const reader = new FileReader();
-
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        
         reader.onload = async (event) => {
             try {
-                let leads: ParsedLead[] = [];
-                if (file.name.endsWith('.csv')) {
-                    leads = parseCSV(event.target?.result as string);
-                } else if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
-                    leads = parseXLSX(event.target?.result as ArrayBuffer);
-                } else {
-                    throw new Error('Formato de arquivo não suportado. Use .csv, .xls ou .xlsx');
+                if (!event.target?.result) {
+                    throw new Error("Não foi possível ler o arquivo.");
                 }
                 
-                if (leads.length === 0) {
-                    throw new Error('Nenhum lead válido encontrado no arquivo. Verifique o formato e o conteúdo.');
-                }
-
+                const leads = parseSpreadsheet(event.target.result, fileExtension === 'csv' ? 'string' : 'array');
+                
                 setParsedLeads(leads);
                 setAssignments({});
                 setUploadStep(2);
@@ -149,10 +128,14 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
             }
         };
 
-        if (file.name.endsWith('.csv')) {
+        if (fileExtension === 'csv') {
             reader.readAsText(file);
-        } else {
+        } else if (fileExtension === 'xls' || fileExtension === 'xlsx') {
             reader.readAsArrayBuffer(file);
+        } else {
+            alert("Formato de arquivo não suportado. Use .csv, .xls ou .xlsx");
+            setIsUploading(false);
+            return;
         }
         
         e.target.value = '';
@@ -299,7 +282,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
         setIsSavingGoals(true);
         const updates: Promise<void>[] = [];
 
-        salespeople.forEach(sp => {
+        vendorsOnly.forEach(sp => {
             const newGoal = goals[sp.id];
             const oldGoal = sp.prospectAISettings?.hunter_goals;
             
@@ -332,6 +315,17 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
 
     const handleDbAssignLead = (leadId: string, salespersonId: string) => {
         setDbAssignments(prev => ({ ...prev, [leadId]: salespersonId }));
+    };
+
+    const handleDistributeDbLeadsEvenly = () => {
+        const numHunters = activeHunters.length;
+        if (numHunters === 0 || unassignedLeads.length === 0) return;
+
+        const newDbAssignments: Record<string, string> = {};
+        unassignedLeads.forEach((lead, index) => {
+            newDbAssignments[lead.id] = activeHunters[index % numHunters].id;
+        });
+        setDbAssignments(newDbAssignments);
     };
 
     const handleSaveDatabaseDistribution = async () => {
@@ -407,7 +401,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                         <h3 className="text-xl font-bold text-dark-text mb-2">Acesso dos Vendedores</h3>
                         <p className="text-sm text-dark-secondary mb-4">Habilite ou desabilite o modo Hunter para cada vendedor da sua equipe.</p>
                         <div className="space-y-3">
-                            {salespeople.map(sp => (
+                            {vendorsOnly.map(sp => (
                                 <div key={sp.id} className="flex items-center justify-between p-3 bg-dark-background rounded-lg border border-dark-border">
                                     <div className="flex items-center gap-3">
                                         <img src={sp.avatarUrl} alt={sp.name} className="w-10 h-10 rounded-full" />
@@ -431,7 +425,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                     <h3 className="text-xl font-bold text-dark-text mb-2">Metas de Prospecção</h3>
                     <p className="text-sm text-dark-secondary mb-4">Defina metas diárias, semanais ou mensais. Metas mensais serão automaticamente divididas por semana para o vendedor.</p>
                     <div className="space-y-4">
-                        {salespeople.map(sp => {
+                        {vendorsOnly.map(sp => {
                             const spGoal = goals[sp.id] || { type: 'monthly', value: 0 };
                             return (
                                 <div key={sp.id} className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 p-3 bg-dark-background rounded-lg border border-dark-border">
@@ -480,7 +474,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
             </Modal>
 
             <Modal isOpen={isDatabaseModalOpen} onClose={() => setDatabaseModalOpen(false)} fullScreen>
-                <div className="h-full flex flex-col">
+                <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8">
                     <div className="flex-shrink-0">
                         <h2 className="text-2xl font-bold text-center mb-2">Base de Dados</h2>
                         <p className="text-center text-dark-secondary mb-6">
@@ -489,7 +483,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                     </div>
                     {unassignedLeads.length > 0 ? (
                         <>
-                            <div className="flex-grow overflow-y-auto pr-2">
+                            <div className="flex-grow overflow-y-auto pr-2 min-h-0">
                                 <table className="w-full text-left text-sm">
                                     <thead className="sticky top-0 bg-dark-card/80 backdrop-blur-sm">
                                         <tr>
@@ -522,11 +516,14 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="flex-shrink-0 flex flex-col sm:flex-row justify-end gap-3 pt-4 mt-4 border-t border-dark-border">
-                                <button onClick={() => setDatabaseModalOpen(false)} className="btn-secondary">Fechar</button>
-                                <button onClick={handleSaveDatabaseDistribution} disabled={isSavingDistribution} className="btn-primary">
-                                    {isSavingDistribution ? 'Salvando...' : 'Salvar Distribuição'}
-                                </button>
+                            <div className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 mt-4 border-t border-dark-border">
+                                <button onClick={handleDistributeDbLeadsEvenly} className="btn-secondary">Distribuir Igualmente</button>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setDatabaseModalOpen(false)} className="btn-secondary">Fechar</button>
+                                    <button onClick={handleSaveDatabaseDistribution} disabled={isSavingDistribution} className="btn-primary">
+                                        {isSavingDistribution ? 'Salvando...' : 'Salvar Distribuição'}
+                                    </button>
+                                </div>
                             </div>
                         </>
                     ) : (
@@ -538,9 +535,9 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
             </Modal>
 
             <Modal isOpen={isUploadModalOpen} onClose={handleCloseUploadModal} fullScreen>
-                <div className="h-full flex flex-col">
+                <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8">
                 {uploadStep === 1 && (
-                     <div className="p-4 flex-grow flex flex-col justify-center max-w-2xl mx-auto w-full">
+                     <div className="flex-grow flex flex-col justify-center max-w-2xl mx-auto w-full">
                         <h2 className="text-2xl font-bold text-center mb-4">Subir Base de Dados</h2>
                         <p className="text-center text-dark-secondary mb-6">Faça o upload de um arquivo .csv, .xls ou .xlsx com as colunas: `nome`, `telefone`.</p>
                         <button onClick={handleDownloadTemplate} className="w-full mb-4 flex items-center justify-center gap-2 text-sm font-semibold py-2 px-3 rounded-lg bg-dark-border/50 hover:bg-dark-border transition-colors">
@@ -558,7 +555,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                     </div>
                 )}
                 {uploadStep === 2 && (
-                    <div className="flex-grow flex flex-col">
+                    <div className="flex-grow flex flex-col min-h-0">
                         <div className="flex-shrink-0">
                             <h2 className="text-2xl font-bold text-center mb-2">Distribuição de Leads</h2>
                             <p className="text-center text-dark-secondary mb-6">
@@ -584,7 +581,7 @@ const HunterSettingsScreen: React.FC<HunterSettingsScreenProps> = ({ salespeople
                             </div>
                         </div>
 
-                        <div className="flex-grow overflow-y-auto pr-2">
+                        <div className="flex-grow overflow-y-auto pr-2 min-h-0">
                              <table className="w-full text-left text-sm">
                                 <thead className="sticky top-0 bg-dark-card/80 backdrop-blur-sm">
                                     <tr>

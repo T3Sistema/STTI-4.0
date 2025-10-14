@@ -286,8 +286,8 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-            // Fix: Added an initial value of 0 to the reduce function to ensure the accumulator is a number.
-            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
+            // @-fix: Added an initial value of 0 to the reduce function. Without it, `sum` becomes the first object in the array, causing a type error when adding a number (sum + m.cost).
+            const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum: number, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;
 

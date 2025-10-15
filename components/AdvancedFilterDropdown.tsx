@@ -54,6 +54,7 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
         setFilters(prev => {
             const currentValues = prev[category];
             
+            // @-fix: Argument of type 'unknown' is not assignable to parameter of type 'string'.
             const newValues = (currentValues as string[]).includes(value)
                 ? (currentValues as string[]).filter(v => v !== value)
                 : [...(currentValues as string[]), value];

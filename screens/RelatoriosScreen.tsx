@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../hooks/useMockData';
 import Card from '../components/Card';
 import { ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon } from '../components/icons';
+import { Company } from '../types';
+import CompanyInfoCard from '../components/CompanyInfoCard';
 
 interface RelatoriosScreenProps {
     companyId: string | null;
@@ -66,11 +68,15 @@ const ReportParser: React.FC<{ content: string }> = ({ content }) => {
 
 
 const RelatoriosScreen: React.FC<RelatoriosScreenProps> = ({ companyId, onBack }) => {
-    const { dailyReports, companies } = useData();
+    const { dailyReports, companies, vehicles } = useData();
     const [selectedDate, setSelectedDate] = useState(new Date());
 
-    const activeCompanies = useMemo(() => companies.filter(c => c.isActive), [companies]);
-    const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(companyId || (activeCompanies.length > 0 ? activeCompanies[0].id : null));
+    const [selectedCompany, setSelectedCompany] = useState<Company | null>(() => {
+        if (!companyId) return null;
+        return companies.find(c => c.id === companyId) || null;
+    });
+
+    const activeCompanies = useMemo(() => companies.filter(c => c.isActive).sort((a,b) => a.name.localeCompare(b.name)), [companies]);
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const dateString = e.target.value;
@@ -94,22 +100,51 @@ const RelatoriosScreen: React.FC<RelatoriosScreenProps> = ({ companyId, onBack }
     }, [selectedDate]);
 
     const report = useMemo(() => {
-        if (!currentCompanyId) return null;
-        return dailyReports.find(r => r.company_id === currentCompanyId && r.report_date === formattedDate);
-    }, [dailyReports, currentCompanyId, formattedDate]);
+        if (!selectedCompany) return null;
+        return dailyReports.find(r => r.company_id === selectedCompany.id && r.report_date === formattedDate);
+    }, [dailyReports, selectedCompany, formattedDate]);
 
-    const companyName = useMemo(() => {
-        return companies.find(c => c.id === currentCompanyId)?.name || 'Empresa desconhecida';
-    }, [companies, currentCompanyId]);
-
+    // Admin view: Select a company first
+    if (!companyId && !selectedCompany) {
+        return (
+            <div className="animate-fade-in">
+                <header className="flex flex-wrap justify-between items-center gap-4 mb-8">
+                    <div>
+                        {onBack && (
+                            <button onClick={onBack} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-2">
+                                &larr; Voltar
+                            </button>
+                        )}
+                        <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Relatórios Diários de Prospecção</h1>
+                        <p className="text-dark-secondary mt-1">Selecione uma empresa para visualizar os relatórios.</p>
+                    </div>
+                </header>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeCompanies.map(company => (
+                        <CompanyInfoCard
+                            key={company.id}
+                            company={company}
+                            vehicleCount={vehicles.filter(v => v.companyId === company.id && v.status === 'available').length}
+                            onClick={() => setSelectedCompany(company)}
+                        />
+                    ))}
+                    {activeCompanies.length === 0 && (
+                        <div className="col-span-full text-center py-16 bg-dark-card rounded-2xl border border-dark-border">
+                            <h3 className="text-xl font-bold text-dark-text">Nenhuma Empresa Ativa</h3>
+                            <p className="text-dark-secondary mt-2">Não há empresas ativas para exibir relatórios.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     const renderContent = () => {
-        if (!currentCompanyId) {
+        if (!selectedCompany) {
             return (
                 <div className="text-center py-16">
                     <DocumentTextIcon className="w-12 h-12 mx-auto text-dark-secondary" />
-                    <h3 className="text-xl font-bold text-dark-text mt-4">Selecione uma Empresa</h3>
-                    <p className="text-dark-secondary mt-2">Escolha uma empresa para visualizar os relatórios diários.</p>
+                    <h3 className="text-xl font-bold text-dark-text mt-4">Empresa não encontrada</h3>
                 </div>
             );
         }
@@ -136,28 +171,20 @@ const RelatoriosScreen: React.FC<RelatoriosScreenProps> = ({ companyId, onBack }
                             &larr; Voltar
                         </button>
                     )}
+                    {!companyId && (
+                        <button onClick={() => setSelectedCompany(null)} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-2">
+                            &larr; Voltar para Seleção de Empresas
+                        </button>
+                    )}
                     <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Relatórios Diários de Prospecção</h1>
                     <p className="text-dark-secondary mt-1">
-                        {companyId ? `Visualizando relatórios para ${companyName}` : "Selecione uma empresa e uma data para ver o relatório."}
+                        Visualizando relatórios para {selectedCompany?.name || '...'}
                     </p>
                 </div>
             </header>
 
             <Card className="p-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-6 border-b border-dark-border">
-                    {!companyId && (
-                        <div className="w-full sm:w-auto">
-                            <label htmlFor="company-select" className="block text-sm font-medium text-dark-secondary mb-1">Empresa</label>
-                            <select
-                                id="company-select"
-                                value={currentCompanyId || ''}
-                                onChange={e => setCurrentCompanyId(e.target.value)}
-                                className="w-full px-3 py-2 bg-dark-background border border-dark-border rounded-md"
-                            >
-                                {activeCompanies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-                    )}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6 pb-6 border-b border-dark-border">
                     <div className="flex items-center gap-2 justify-center flex-1">
                         <button onClick={() => navigateDays(-1)} className="p-2 rounded-md hover:bg-dark-border"><ChevronLeftIcon /></button>
                         <input

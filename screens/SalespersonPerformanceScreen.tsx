@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { formatCurrency } from '../utils/calculationUtils';
@@ -42,7 +43,7 @@ const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // @-fix: The `sum` accumulator in the inner reduce was not correctly inferred as a number. Providing an initial value of 0 resolves the arithmetic operation error.
+        // FIX: The `sum` accumulator in the inner reduce was not correctly inferred as a number. Providing an initial value of 0 resolves the arithmetic operation error.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);

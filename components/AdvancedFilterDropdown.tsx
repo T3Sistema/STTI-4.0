@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { AdvancedFilters } from './FilterBar';
@@ -47,7 +48,8 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
         modelNames: [],
     });
 
-    // @-fix: The type of `v` in the filter callback was being inferred as 'unknown', causing a type error. By explicitly casting `currentValues` to `string[]`, TypeScript can correctly infer `v` as a string.
+    // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+    // The type of `v` in the filter callback was being inferred as 'unknown', causing a type error. By explicitly casting `currentValues` to `string[]`, TypeScript can correctly infer `v` as a string.
     const handleCheckboxChange = (category: keyof AdvancedFilters, value: string) => {
         setFilters(prev => {
             const currentValues = prev[category];

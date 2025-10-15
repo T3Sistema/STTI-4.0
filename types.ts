@@ -333,7 +333,16 @@ export interface LiveAgentConfig {
   updatedAt?: string;
 }
 
+export interface DailyReport {
+  id: string;
+  created_at: string;
+  report_date: string; // YYYY-MM-DD
+  company_id: string;
+  report_content: string;
+  raw_data?: any;
+}
+
 
 export type Theme = 'light' | 'dark';
-export type View = 'admin' | 'dashboard' | 'grupos' | 'monitor_settings';
+export type View = 'admin' | 'dashboard' | 'grupos' | 'monitor_settings' | 'relatorios';
 export type UserRole = 'admin' | 'company' | 'traffic_manager' | 'salesperson' | 'grupo_empresarial';

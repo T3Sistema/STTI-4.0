@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
-import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage, BusinessHours, ProspectAISettings, LiveAgentConfig } from '../types';
+import type { Company, Vehicle, TeamMember, Notification, UserRole, MaterialRequest, Reminder, AdminUser, AdminNotification, LogEntry, LogType, MaintenanceRecord, ProspectAILead, GrupoEmpresarial, PipelineStage, SalespersonProspectAISettings, HunterLead, MonitorSettings, MonitorChatMessage, BusinessHours, ProspectAISettings, LiveAgentConfig, DailyReport } from '../types';
 
 // DATA CONTEXT
 interface DataContextType {
@@ -22,6 +22,7 @@ interface DataContextType {
     monitorSettings: MonitorSettings | null;
     monitorChatHistory: MonitorChatMessage[];
     liveAgentConfigs: LiveAgentConfig[];
+    dailyReports: DailyReport[];
     toolboxUrl: string | null;
     updateCompanyStatus: (id: string, isActive: boolean) => Promise<void>;
     addCompany: (companyData: Omit<Company, 'id' | 'isActive' | 'monthlySalesGoal' | 'pipeline_stages'>, password: string) => Promise<void>;
@@ -353,6 +354,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [monitorSettings, setMonitorSettings] = useState<MonitorSettings | null>(null);
     const [monitorChatHistory, setMonitorChatHistory] = useState<MonitorChatMessage[]>([]);
     const [liveAgentConfigs, setLiveAgentConfigs] = useState<LiveAgentConfig[]>([]);
+    const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
     const [toolboxUrl, setToolboxUrl] = useState<string | null>(null);
 
     // Client-side only state for now
@@ -397,6 +399,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     { data: monitorChatHistoryData, error: monitorChatHistoryError },
                     { data: toolboxConfigData, error: toolboxConfigError },
                     { data: liveAgentConfigsData, error: liveAgentConfigsError },
+                    { data: dailyReportsData, error: dailyReportsError },
                 ] = await Promise.all([
                     supabase.from('companies').select('*').order('created_at', { ascending: true }),
                     supabase.from('team_members').select('*'), // Fetch all fields including settings
@@ -412,6 +415,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     supabase.from('monitor_chat_history').select('*').order('created_at', { ascending: true }),
                     supabase.from('toolbox_config').select('url').single(),
                     supabase.from('live_agent_configs').select('*'),
+                    supabase.from('daily_reports').select('*').order('report_date', { ascending: false }),
                 ]);
 
                 if (companiesError) throw companiesError;
@@ -427,6 +431,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (monitorSettingsError) throw monitorSettingsError;
                 if (monitorChatHistoryError) throw monitorChatHistoryError;
                 if (liveAgentConfigsError) throw liveAgentConfigsError;
+                if (dailyReportsError) throw dailyReportsError;
                 if (toolboxConfigError && toolboxConfigError.code !== 'PGRST116') {
                     console.error("Error fetching toolbox config:", toolboxConfigError);
                 }
@@ -458,6 +463,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setMonitorSettings(monitorSettingsData || null);
                 setMonitorChatHistory(monitorChatHistoryData || []);
                 setLiveAgentConfigs(mappedLiveAgentConfigs || []);
+                setDailyReports(dailyReportsData || []);
                 setToolboxUrl(toolboxConfigData?.url || null);
                 
                 const enrichedLogs = (logsData || []).map((log: any) => ({
@@ -511,6 +517,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const gruposSubscription = createSubscription('realtime:grupos_empresariais', 'grupos_empresariais', setGruposEmpresariais, mapGrupoFromDB);
         const chatSubscription = createSubscription('realtime:monitor_chat_history', 'monitor_chat_history', setMonitorChatHistory);
         const liveAgentConfigsSubscription = createSubscription('realtime:live_agent_configs', 'live_agent_configs', setLiveAgentConfigs, mapLiveAgentConfigFromDB);
+        const dailyReportsSubscription = createSubscription('realtime:daily_reports', 'daily_reports', setDailyReports, undefined, true);
         
         const vehiclesSubscription = supabase.channel('realtime:vehicles')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vehicles' }, (payload) => {
@@ -582,6 +589,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           supabase.removeChannel(monitorSettingsSubscription);
           supabase.removeChannel(toolboxSubscription);
           supabase.removeChannel(liveAgentConfigsSubscription);
+          supabase.removeChannel(dailyReportsSubscription);
         };
     }, []);
 
@@ -1841,6 +1849,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         monitorSettings,
         monitorChatHistory,
         liveAgentConfigs,
+        dailyReports,
         toolboxUrl,
         updateCompanyStatus,
         addCompany,

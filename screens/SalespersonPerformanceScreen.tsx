@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { formatCurrency } from '../utils/calculationUtils';

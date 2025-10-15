@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { AdvancedFilters } from './FilterBar';
@@ -50,11 +51,8 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
         setFilters(prev => {
             const currentValues = prev[category];
             
-            // @-fix: Explicitly typing `v` as a string allows the `filter` method to work correctly.
-            // When iterating over `currentValues`, TypeScript couldn't infer the type of `v`, defaulting to `unknown`. Explicitly setting it to `string` resolves the type error.
+            // @-fix: Explicitly typing `v` as a string allows the `filter` method to work correctly, as TypeScript was inferring it as `unknown`.
             const newValues = currentValues.includes(value)
-// @-fix: Explicitly typing `v` as a string allows the `filter` method to work correctly.
-// When iterating over `currentValues`, TypeScript couldn't infer the type of `v`, defaulting to `unknown`. Explicitly setting it to `string` resolves the type error.
                 ? currentValues.filter((v: string) => v !== value)
                 : [...currentValues, value];
             return { ...prev, [category]: newValues };

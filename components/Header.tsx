@@ -8,6 +8,7 @@ import { SettingsIcon } from './icons/SettingsIcon';
 import { LogoutIcon } from './icons/LogoutIcon';
 import { BriefcaseIcon } from './icons/BriefcaseIcon';
 import { MonitorIcon } from './icons/MonitorIcon';
+import { DocumentTextIcon } from './icons/DocumentTextIcon';
 
 interface HeaderProps {
   currentView: View;
@@ -50,6 +51,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView, onOpenSett
               <NavButton view="dashboard" label="Dashboard" icon={<DashboardIcon />} />
               <NavButton view="admin" label="Admin" icon={<AdminIcon />} />
               <NavButton view="grupos" label="Grupos Empresarias" icon={<BriefcaseIcon />} />
+              <NavButton view="relatorios" label="Relatórios" icon={<DocumentTextIcon />} />
           </div>
           <div className="flex items-center gap-2">
              <AdminNotificationBell />

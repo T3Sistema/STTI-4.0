@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect, ChangeEvent } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
@@ -41,8 +40,9 @@ import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterScreen from './HunterScreen';
 import { LiveIcon } from '../components/icons/LiveIcon';
 import LiveAgentConfigScreen from './LiveAgentConfigScreen';
-import { DownloadIcon, UploadIcon } from '../components/icons';
+import { DocumentTextIcon, DownloadIcon, UploadIcon } from '../components/icons';
 import * as XLSX from 'xlsx';
+import RelatoriosScreen from './RelatoriosScreen';
 
 interface DashboardScreenProps {
   onLogout: () => void;
@@ -88,7 +88,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const isProspectOnly = features.includes('prospectai') && !features.includes('estoque_inteligente');
 
     // State
-    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings' | 'live_agent_config'>(isProspectOnly ? 'prospectai' : 'dashboard');
+    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings' | 'live_agent_config' | 'relatorios'>(isProspectOnly ? 'prospectai' : 'dashboard');
     const [stockView, setStockView] = useState<'available' | 'sold'>('available');
     const [isCompanyFormOpen, setCompanyFormOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -341,7 +341,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
         }
     };
      const handleDownloadTemplate = () => {
-        const csvContent = "nome,telefone\nJoão da Silva,11987654321\nMaria Oliveira,21912345678";
+        const csvContent = "\uFEFFnome,telefone\nJoão da Silva,11987654321\nMaria Oliveira,21912345678";
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
@@ -365,6 +365,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     if (view === 'goal_settings') return <GoalSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
     if (view === 'business_hours_settings') return <BusinessHoursSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
     if (view === 'live_agent_config') return <LiveAgentConfigScreen companyId={companyId} onBack={() => setView('prospectai')} />;
+    if (view === 'relatorios') return <RelatoriosScreen companyId={companyId} onBack={() => setView('prospectai')} />;
 
     if (view === 'prospectai') {
         if (selectedProspectSalesperson) {
@@ -410,6 +411,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                     <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                         <h1 className="text-3xl sm:text-4xl font-bold text-dark-text">Pipeline de Prospecção - Visão Geral</h1>
                         <div className="flex flex-wrap items-center gap-2">
+                            <button onClick={() => setView('relatorios')} className={btnHeaderStyle}>
+                                <DocumentTextIcon className="w-4 h-4" />
+                                Relatórios Diários
+                            </button>
                             <button onClick={() => setView('prospect_analysis')} className={btnHeaderStyle}><BullseyeIcon className="w-4 h-4" />Análise de Prospecção</button>
                             <button onClick={() => setView('live_agent_config')} className={btnHeaderStyle}>
                                 <LiveIcon className="w-4 h-4" />

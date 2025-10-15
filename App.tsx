@@ -16,6 +16,7 @@ import GrupoUserDashboardScreen from './screens/GrupoUserDashboardScreen';
 import MonitorChatWidget from './components/MonitorChatWidget';
 import MonitorSettingsScreen from './screens/MonitorSettingsScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
+import RelatoriosScreen from './screens/RelatoriosScreen';
 
 // Helper to map DB snake_case to client camelCase for GrupoEmpresarial
 // This avoids the 'includes' of undefined error by ensuring companyIds exists.
@@ -183,6 +184,8 @@ const AppContent: React.FC<AppContentProps> = ({ onLogout }) => {
           return <GruposEmpresariaisScreen />;
         case 'monitor_settings':
           return <MonitorSettingsScreen />;
+        case 'relatorios':
+          return <RelatoriosScreen companyId={null} />;
         case 'dashboard':
         default:
           return <AdminDashboardScreen onCompanySelect={handleSelectCompany} />;

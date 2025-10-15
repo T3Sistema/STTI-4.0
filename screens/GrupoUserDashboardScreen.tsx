@@ -1,20 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../hooks/useMockData';
-import { GrupoEmpresarial } from '../types';
+import { GrupoEmpresarial, Company } from '../types';
 import CompanyInfoCard from '../components/CompanyInfoCard';
 import GrupoHeader from '../components/GrupoHeader';
 import DashboardScreen from './DashboardScreen';
 import Modal from '../components/Modal';
 import GrupoUserProfileForm from '../components/forms/GrupoUserProfileForm';
 import GrupoUserPasswordForm from '../components/forms/GrupoUserPasswordForm';
-import GrupoMetricsScreen from './GrupoMetricsScreen'; // Importa a nova tela
+import GrupoMetricsScreen from './GrupoMetricsScreen';
+import RelatoriosScreen from './RelatoriosScreen';
 
 interface GrupoUserDashboardScreenProps {
     user: GrupoEmpresarial;
     onLogout: () => void;
 }
 
-type GrupoView = 'empresas' | 'metricas';
+type GrupoView = 'empresas' | 'metricas' | 'relatorios';
 
 const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ user, onLogout }) => {
     const { companies, vehicles, gruposEmpresariais, prospectaiLeads, hunterLeads, teamMembers } = useData();
@@ -22,6 +23,8 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
     const [currentView, setCurrentView] = useState<GrupoView>('empresas');
+    const [selectedCompanyForReport, setSelectedCompanyForReport] = useState<Company | null>(null);
+
 
     // Get the most up-to-date user data from the context
     const currentUserData = useMemo(() => 
@@ -72,6 +75,32 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
                         hunterLeads={hunterLeads}
                         teamMembers={teamMembers}
                     />
+                );
+            case 'relatorios':
+                if (selectedCompanyForReport) {
+                    return (
+                        <>
+                            <button onClick={() => setSelectedCompanyForReport(null)} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-4">
+                                &larr; Voltar para seleção de empresas
+                            </button>
+                            <RelatoriosScreen companyId={selectedCompanyForReport.id} />
+                        </>
+                    );
+                }
+                return (
+                     <>
+                        <h2 className="text-2xl font-bold text-dark-text mb-4">Selecione uma empresa para ver os relatórios</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {accessibleCompanies.map(company => (
+                                <CompanyInfoCard
+                                    key={company.id}
+                                    company={company}
+                                    vehicleCount={vehicles.filter(v => v.companyId === company.id && v.status === 'available').length}
+                                    onClick={() => setSelectedCompanyForReport(company)}
+                                />
+                            ))}
+                        </div>
+                    </>
                 );
             case 'empresas':
             default:
@@ -140,11 +169,14 @@ const GrupoUserDashboardScreen: React.FC<GrupoUserDashboardScreenProps> = ({ use
 
                     <div className="mb-6 border-b border-dark-border">
                         <nav className="flex space-x-4">
-                             <button onClick={() => setCurrentView('empresas')} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'empresas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
+                             <button onClick={() => { setCurrentView('empresas'); setSelectedCompanyForReport(null); }} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'empresas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
                                 Empresas
                             </button>
-                            <button onClick={() => setCurrentView('metricas')} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'metricas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
+                            <button onClick={() => { setCurrentView('metricas'); setSelectedCompanyForReport(null); }} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'metricas' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
                                 Métricas
+                            </button>
+                             <button onClick={() => { setCurrentView('relatorios'); setSelectedCompanyForReport(null); }} className={`py-2 px-4 text-sm font-semibold border-b-2 ${currentView === 'relatorios' ? 'text-dark-primary border-dark-primary' : 'text-dark-secondary border-transparent hover:border-dark-border'}`}>
+                                Relatórios
                             </button>
                         </nav>
                     </div>

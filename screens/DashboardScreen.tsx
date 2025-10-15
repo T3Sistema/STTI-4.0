@@ -55,6 +55,16 @@ interface ParsedLead {
 }
 
 const parseSpreadsheet = (data: string | ArrayBuffer, type: 'string' | 'array'): ParsedLead[] => {
+    const findValueByKey = (obj: any, keys: string[]): string => {
+        const lowerCaseKeys = keys.map(k => k.toLowerCase());
+        for (const key in obj) {
+            if (lowerCaseKeys.includes(key.toLowerCase())) {
+                return String(obj[key] || "").trim();
+            }
+        }
+        return "";
+    };
+
     const workbook = XLSX.read(data, { type });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
@@ -63,13 +73,14 @@ const parseSpreadsheet = (data: string | ArrayBuffer, type: 'string' | 'array'):
     const worksheet = workbook.Sheets[sheetName];
     const json: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-    const mappedLeads = json.map(row => ({
-        nome: String(row.nome || row.name || "").trim(),
-        telefone: String(row.telefone || row.phone || "").trim()
-    })).filter(lead => lead.nome && lead.telefone);
+    const mappedLeads = json.map(row => {
+        const nome = findValueByKey(row, ['nome', 'name']);
+        const telefone = findValueByKey(row, ['telefone', 'phone']);
+        return { nome, telefone };
+    }).filter(lead => lead.nome && lead.telefone);
 
     if (mappedLeads.length === 0) {
-        throw new Error('Nenhum lead válido encontrado. Verifique se a planilha possui as colunas "nome" e "telefone" (ou "name" e "phone") e se não está vazia.');
+        throw new Error('Nenhum lead válido encontrado. Verifique se a planilha possui colunas de nome e telefone (variações como "NOME", "Name", "TELEFONE", "Phone" são aceitas) e se não está vazia.');
     }
     
     return mappedLeads;

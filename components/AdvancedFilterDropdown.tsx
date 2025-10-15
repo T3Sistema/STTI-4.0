@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { AdvancedFilters } from './FilterBar';

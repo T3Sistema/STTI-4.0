@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Company, TeamMember, Vehicle } from '../types';
 import { formatCurrency } from '../utils/calculationUtils';
@@ -83,7 +76,6 @@ const calculateMetrics = (vehicles: Vehicle[]) => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // FIX: The `sum` accumulator in the inner reduce was not correctly inferred as a number. Explicitly typing it resolves the arithmetic operation error.
         const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);

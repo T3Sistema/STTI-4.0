@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useMemo } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { formatCurrency } from '../utils/calculationUtils';
@@ -42,8 +44,8 @@ const calculateMetrics = (vehicles: Vehicle[]): SalesData => {
     const totalRevenue = vehicles.reduce((acc, v) => acc + ((v.announcedPrice || 0) - (v.discount || 0)), 0);
     const totalProfit = vehicles.reduce((acc, v) => {
         const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-        // @-fix: Added an initial value of 0 to the reduce function. Without it, `sum` becomes the first object in the array, causing a type error when adding a number (sum + m.cost).
-        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum: number, m) => sum + m.cost, 0);
+        // FIX: Added an initial value of 0 to the reduce function. Without it, `sum` becomes the first object in the array, causing a type error when adding a number (sum + m.cost).
+        const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
         return acc + (salePrice - totalCosts);
     }, 0);
     const avgDaysToSell = totalSales > 0 ? vehicles.reduce((acc, v) => acc + getDaysInStock(v.entryDate, v.saleDate), 0) / totalSales : 0;

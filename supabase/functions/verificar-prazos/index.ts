@@ -3,7 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// @-fix: Declare Deno to resolve TypeScript errors in environments without Deno types.
+// FIX: Declare Deno to resolve TypeScript errors in environments without Deno types.
 declare const Deno: any;
 
 interface BusinessHours {

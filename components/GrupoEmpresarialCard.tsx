@@ -54,7 +54,7 @@ const GrupoEmpresarialCard: React.FC<GrupoEmpresarialCardProps> = ({ grupo, onMa
                 </div>
                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-dark-border">
                     <span className="text-sm font-semibold">Status do Grupo:</span>
-                    {/* @-fix: Moved onStatusChange to the label's onClick and made the input readOnly to fix type mismatch and ensure correct behavior. */}
+                    {/* FIX: Moved onStatusChange to the label's onClick and made the input readOnly to fix type mismatch and ensure correct behavior. */}
                     <label htmlFor={`toggle-group-${grupo.id}`} className="flex items-center cursor-pointer" onClick={(e) => { e.stopPropagation(); onStatusChange(e); }}>
                         <div className="relative">
                             <input type="checkbox" id={`toggle-group-${grupo.id}`} className="sr-only peer" checked={grupo.isActive} readOnly />

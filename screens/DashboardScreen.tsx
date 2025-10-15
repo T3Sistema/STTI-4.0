@@ -485,7 +485,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                 onAdvancedFilterChange={setFilters}
                 // FIX: Use Array.isArray() as a type guard before accessing `val.length` on `unknown`.
-                activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                 selectedSalespersonId={selectedSalespersonId}
                 onSalespersonSelect={setSelectedSalespersonId}
                 stockView={stockView}

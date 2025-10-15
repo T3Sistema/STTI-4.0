@@ -326,7 +326,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                     onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                     onAdvancedFilterChange={setFilters}
                     // FIX: Use Array.isArray(val) as a type guard before accessing `val.length` on `unknown`.
-                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val: unknown) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                     selectedSalespersonId={selectedSalespersonId}
                     onSalespersonSelect={setSelectedSalespersonId}
                     areFiltersDisabled={stockView === 'assigned'}

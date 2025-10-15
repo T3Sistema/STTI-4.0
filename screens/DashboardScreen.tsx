@@ -378,6 +378,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                         onLogout={onLogout}
                         showBackButton={true}
                         isManagerView={true}
+                        allSalespeople={companySalespeople}
                     />
                 );
             }

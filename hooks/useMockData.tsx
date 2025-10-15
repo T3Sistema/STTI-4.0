@@ -63,7 +63,9 @@ interface DataContextType {
     updateProspectLead: (leadId: string, updates: Partial<ProspectAILead>) => Promise<void>;
     reassignProspectLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string) => Promise<void>;
     addProspectLeadFeedback: (leadId: string, feedbackText: string, images: string[]) => Promise<void>;
+    transferProspectLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => Promise<void>;
     addHunterLeadAction: (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => Promise<void>;
+    transferHunterLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => Promise<void>;
     addGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'id' | 'companyIds' | 'createdAt' | 'isActive'>, password: string) => Promise<void>;
     updateGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'companyIds'>) => Promise<void>;
     updateGrupoCompanies: (groupId: string, companyIds: string[]) => Promise<void>;
@@ -254,6 +256,7 @@ const defaultBusinessHours: BusinessHours = {
 const defaultCompanyProspectAISettings: ProspectAISettings = {
   show_monthly_leads_kpi: { enabled: false, visible_to: [] },
   business_hours: defaultBusinessHours,
+  overdue_leads_lock: { enabled: false, apply_to: 'all', lock_after_time: '08:00' },
 };
 
 const mapCompanyFromDB = (c: any): Company => ({
@@ -284,6 +287,10 @@ const mapCompanyFromDB = (c: any): Company => ({
                 ...defaultBusinessHours.days,
                 ...((c.prospect_ai_settings && c.prospect_ai_settings.business_hours && c.prospect_ai_settings.business_hours.days) || {})
             }
+        },
+        overdue_leads_lock: {
+            ...defaultCompanyProspectAISettings.overdue_leads_lock,
+            ...((c.prospect_ai_settings && c.prospect_ai_settings.overdue_leads_lock) || {}),
         }
     },
     createdAt: c.created_at,
@@ -337,6 +344,7 @@ const defaultPipelineStages: PipelineStage[] = [
   { id: crypto.randomUUID(), name: 'Agendado', stageOrder: 4, isFixed: false, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Finalizados', stageOrder: 99, isFixed: true, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Remanejados', stageOrder: 100, isFixed: true, isEnabled: true },
+  { id: crypto.randomUUID(), name: 'Atendimentos Transferidos', stageOrder: 101, isFixed: true, isEnabled: true },
 ];
 
 
@@ -1332,6 +1340,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const transferProspectLead = async (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => {
+        const leadToUpdate = prospectaiLeads.find(l => l.id === leadId);
+        if (!leadToUpdate) return;
+
+        const company = companies.find(c => c.id === leadToUpdate.companyId);
+        if (!company) {
+            console.error("Could not find company for lead.");
+            return;
+        }
+
+        const novosLeadsStage = company.pipeline_stages.find(s => s.name === 'Novos Leads');
+        if (!novosLeadsStage) {
+            console.error("Could not find 'Novos Leads' stage for company.");
+            return;
+        }
+
+        const imageUrls: string[] = [];
+        for (const imageBase64 of feedback.images) {
+            const file = dataURLtoFile(imageBase64, `transfer-feedback-${leadId}-${Date.now()}`);
+            if (file) {
+                const filePath = `public/feedback-images/${leadId}/${crypto.randomUUID()}`;
+                const { error: uploadError } = await supabase.storage.from('estoqueinteligentetriad3').upload(filePath, file);
+                if (!uploadError) {
+                    const { data: urlData } = supabase.storage.from('estoqueinteligentetriad3').getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                }
+            }
+        }
+        
+        const now = new Date().toISOString();
+        const newFeedbackEntry = {
+            text: feedback.text,
+            images: imageUrls,
+            createdAt: now,
+            stageId: leadToUpdate.stage_id,
+        };
+        const updatedFeedback = [...(leadToUpdate.feedback || []), newFeedbackEntry];
+
+        const newDetails = {
+            ...(leadToUpdate.details || {}),
+            transferred_from: originalSalespersonId,
+            transferred_to: newSalespersonId,
+            transferred_at: now,
+        };
+
+        const { data, error } = await supabase
+            .from('prospectai')
+            .update({ 
+                salesperson_id: newSalespersonId,
+                stage_id: novosLeadsStage.id,
+                details: newDetails,
+                feedback: updatedFeedback,
+                last_feedback_at: now,
+                prospected_at: null,
+                appointment_at: null,
+                outcome: null
+            })
+            .eq('id', leadId)
+            .select()
+            .single();
+
+        if (error) { console.error("Error transferring lead:", error); return; }
+
+        if (data) {
+            setProspectaiLeads(prev => prev.map(l => l.id === leadId ? mapProspectFromDB(data) : l));
+        }
+    };
+    
     const addProspectLeadFeedback = async (leadId: string, feedbackText: string, images: string[]) => {
         try {
             const imageUrls: string[] = [];
@@ -1771,6 +1847,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
     
+    const transferHunterLead = async (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => {
+        const leadToUpdate = hunterLeads.find(l => l.id === leadId);
+        if (!leadToUpdate) return;
+
+        const company = companies.find(c => c.id === leadToUpdate.companyId);
+        if (!company) {
+            console.error("Could not find company for lead.");
+            return;
+        }
+
+        const novosLeadsStage = company.pipeline_stages.find(s => s.name === 'Novos Leads');
+        if (!novosLeadsStage) {
+            console.error("Could not find 'Novos Leads' stage for company.");
+            return;
+        }
+        
+        const imageUrls: string[] = [];
+        for (const imageBase64 of feedback.images) {
+            const file = dataURLtoFile(imageBase64, `transfer-feedback-${leadId}-${Date.now()}`);
+            if (file) {
+                const filePath = `public/feedback-images/${leadId}/${crypto.randomUUID()}`;
+                const { error: uploadError } = await supabase.storage.from('estoqueinteligentetriad3').upload(filePath, file);
+                if (!uploadError) {
+                    const { data: urlData } = supabase.storage.from('estoqueinteligentetriad3').getPublicUrl(filePath);
+                    imageUrls.push(urlData.publicUrl);
+                }
+            }
+        }
+        
+        const now = new Date().toISOString();
+        const newFeedbackEntry = {
+            text: feedback.text,
+            images: imageUrls,
+            createdAt: now,
+            stageId: leadToUpdate.stage_id,
+        };
+        const updatedFeedback = [...(leadToUpdate.feedback || []), newFeedbackEntry];
+
+        const newDetails = {
+            ...(leadToUpdate.details || {}),
+            transferred_from: originalSalespersonId,
+            transferred_to: newSalespersonId,
+            transferred_at: now,
+        };
+
+        const { data, error } = await supabase
+            .from('hunter_leads')
+            .update({ 
+                salesperson_id: newSalespersonId,
+                stage_id: novosLeadsStage.id,
+                details: newDetails,
+                feedback: updatedFeedback,
+                last_activity: now,
+                prospected_at: null,
+                appointment_at: null,
+                outcome: null
+            })
+            .eq('id', leadId)
+            .select()
+            .single();
+
+        if (error) { console.error("Error transferring hunter lead:", error); return; }
+
+        if (data) {
+            setHunterLeads(prev => prev.map(l => l.id === leadId ? mapHunterLeadFromDB(data) : l));
+        }
+    };
+    
     const updateMonitorSettings = async (settings: Omit<MonitorSettings, 'id'>) => {
         if (!monitorSettings) return;
         const { data, error } = await supabase.from('monitor_settings').update(settings).eq('id', monitorSettings.id).select().single();
@@ -1891,7 +2035,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateProspectLead,
         reassignProspectLead,
         addProspectLeadFeedback,
+        transferProspectLead,
         addHunterLeadAction,
+        transferHunterLead,
         addGrupoEmpresarial,
         updateGrupoEmpresarial,
         updateGrupoCompanies,

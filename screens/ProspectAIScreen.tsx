@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import Card from '../components/Card';
 import { TeamMember, ProspectAILead, PipelineStage } from '../types';
 import { useData } from '../hooks/useMockData';
-import LeadCard from '../components/LeadCard';
+import { LeadCard } from '../components/LeadCard';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SalespersonProspectPerformanceScreen from './SalespersonProspectPerformanceScreen';
 import { ChartBarIcon } from '../components/icons/ChartBarIcon';
@@ -23,6 +23,7 @@ import GoalProgressCard from '../components/GoalProgressCard';
 import { SwitchHorizontalIcon } from '../components/icons/SwitchHorizontalIcon';
 import { ToolboxIcon } from '../components/icons/ToolboxIcon';
 import ToolboxViewer from '../components/ToolboxViewer';
+import TransferLeadModal from '../components/modals/TransferLeadModal';
 
 interface ProspectAIScreenProps {
     onBack: () => void;
@@ -54,6 +55,8 @@ const getStageColorClasses = (stageName: string) => {
         case 'Remanejados':
         case 'Round-Robin':
             return { bar: 'bg-purple-500', badge: 'bg-purple-500 text-white' };
+        case 'Atendimentos Transferidos':
+            return { bar: 'bg-indigo-500', badge: 'bg-indigo-500 text-white' };
         case 'Finalizados':
             return { bar: 'bg-slate-500', badge: 'bg-slate-500 text-white' };
         default:
@@ -153,6 +156,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         hunterLeads,
         updateProspectLeadStatus,
         reassignProspectLead,
+        transferProspectLead,
         companies,
         notifications,
         markNotificationAsRead,
@@ -165,6 +169,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
     const [leadToReassign, setLeadToReassign] = useState<ProspectAILead | null>(null);
+    const [leadToTransfer, setLeadToTransfer] = useState<ProspectAILead | null>(null);
     const [pendingLeads, setPendingLeads] = useState<ProspectAILead[]>([]);
     const [isProspectingLocked, setIsProspectingLocked] = useState(false);
     const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
@@ -238,9 +243,92 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
     const myLeads = useMemo(() => {
         return prospectaiLeads.filter(lead => 
             lead.salespersonId === user.id || 
-            lead.details?.reassigned_from === user.id
+            lead.details?.reassigned_from === user.id ||
+            lead.details?.transferred_from === user.id
         );
     }, [prospectaiLeads, user.id]);
+
+    const myCompanyStages = useMemo(() => {
+        const stages = activeCompany ? [...activeCompany.pipeline_stages] : [];
+        // Adiciona a nova coluna se ela não existir para garantir a visualização
+        if (!stages.some(s => s.name === 'Atendimentos Transferidos')) {
+            stages.push({
+                id: 'temp-transferred-id', // ID temporário
+                name: 'Atendimentos Transferidos',
+                stageOrder: 101,
+                isFixed: true,
+                isEnabled: true,
+            });
+        }
+        return stages
+            .filter(s => s.isEnabled)
+            .sort((a, b) => a.stageOrder - b.stageOrder);
+    }, [activeCompany]);
+    
+    // Logic to detect pending leads from previous days
+    useEffect(() => {
+        const lockSettings = activeCompany?.prospectAISettings?.overdue_leads_lock;
+
+        if (!lockSettings?.enabled || isManagerView) {
+            setIsProspectingLocked(false);
+            return;
+        }
+
+        const appliesToUser = lockSettings.apply_to === 'all' || (Array.isArray(lockSettings.apply_to) && lockSettings.apply_to.includes(user.id));
+
+        if (!appliesToUser) {
+            setIsProspectingLocked(false);
+            return;
+        }
+
+        // Check if the current time is past the lock time
+        const lockTime = lockSettings.lock_after_time || '00:00';
+        const [hours, minutes] = lockTime.split(':').map(Number);
+        const now = new Date();
+        const lockActivationTime = new Date();
+        lockActivationTime.setHours(hours, minutes, 0, 0);
+
+        if (now < lockActivationTime) {
+            setIsProspectingLocked(false);
+            return;
+        }
+
+        if (!myCompanyStages || myCompanyStages.length === 0) {
+            setIsProspectingLocked(false);
+            return;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const nonActionableStageNames = ['Novos Leads', 'Finalizados', 'Remanejados', 'Agendado', 'Atendimentos Transferidos'];
+        const actionableStageIds = myCompanyStages
+            .filter(s => s.isEnabled && !nonActionableStageNames.includes(s.name))
+            .map(s => s.id);
+
+        const pending = myLeads.filter(lead => {
+            if (!actionableStageIds.includes(lead.stage_id)) {
+                return false;
+            }
+
+            const hasFeedback = lead.feedback && lead.feedback.length > 0;
+            if (hasFeedback) {
+                const latestFeedbackDate = new Date(lead.feedback[lead.feedback.length - 1].createdAt);
+                return latestFeedbackDate < today;
+            } else {
+                const prospectDate = lead.prospected_at ? new Date(lead.prospected_at) : null;
+                if (prospectDate) {
+                    return prospectDate < today;
+                }
+                const creationDate = new Date(lead.createdAt);
+                return creationDate < today;
+            }
+        });
+        
+        setPendingLeads(pending);
+        setIsProspectingLocked(pending.length > 0);
+    }, [myLeads, myCompanyStages, isManagerView, activeCompany, user.id]);
+
 
     const filteredLeads = useMemo(() => {
         if (period === 'all') return myLeads;
@@ -271,53 +359,6 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
 
     const userNotifications = useMemo(() => notifications.filter(n => (n.recipientRole === 'salesperson' && !n.userId) || n.userId === user.id), [notifications, user.id]);
 
-    const myCompanyStages = useMemo(() =>
-        activeCompany ? [...activeCompany.pipeline_stages]
-            .filter(s => s.isEnabled)
-            .sort((a, b) => a.stageOrder - b.stageOrder) : [],
-        [activeCompany]
-    );
-    
-    // Logic to detect pending leads from previous days
-    useEffect(() => {
-        if (!myCompanyStages || myCompanyStages.length === 0 || isManagerView) {
-            setPendingLeads([]);
-            setIsProspectingLocked(false);
-            return;
-        }
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const nonActionableStageNames = ['Novos Leads', 'Finalizados', 'Remanejados', 'Agendado'];
-        const actionableStageIds = myCompanyStages
-            .filter(s => s.isEnabled && !nonActionableStageNames.includes(s.name))
-            .map(s => s.id);
-
-        const pending = myLeads.filter(lead => {
-            if (!actionableStageIds.includes(lead.stage_id)) {
-                return false;
-            }
-
-            const hasFeedback = lead.feedback && lead.feedback.length > 0;
-            if (hasFeedback) {
-                const latestFeedbackDate = new Date(lead.feedback[lead.feedback.length - 1].createdAt);
-                return latestFeedbackDate < today;
-            } else {
-                const prospectDate = lead.prospected_at ? new Date(lead.prospected_at) : null;
-                if (prospectDate) {
-                    return prospectDate < today;
-                }
-                const creationDate = new Date(lead.createdAt);
-                return creationDate < today;
-            }
-        });
-        
-        setPendingLeads(pending);
-        setIsProspectingLocked(pending.length > 0);
-    }, [myLeads, myCompanyStages, isManagerView]);
-
-
     const stagesByName = useMemo(() =>
         myCompanyStages.reduce((acc, stage) => {
             acc[stage.name] = stage;
@@ -334,14 +375,16 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
 
         const novoLeadStageId = stagesByName['Novos Leads']?.id;
         const remanejadoStageId = stagesByName['Remanejados']?.id;
+        const transferredStageId = stagesByName['Atendimentos Transferidos']?.id;
 
         filteredLeads.forEach(lead => {
-            const leadStage = myCompanyStages.find(s => s.id === lead.stage_id);
-
-            if (lead.details?.reassigned_from === user.id && remanejadoStageId) {
+            if (lead.details?.transferred_from === user.id && transferredStageId) {
+                categories[transferredStageId].push(lead);
+            } else if (lead.details?.reassigned_from === user.id && remanejadoStageId) {
                 categories[remanejadoStageId].push(lead);
             } else if (lead.salespersonId === user.id) {
-                if (leadStage?.name === 'Remanejados' && novoLeadStageId) {
+                const leadStage = myCompanyStages.find(s => s.id === lead.stage_id);
+                 if (leadStage?.name === 'Remanejados' && novoLeadStageId) {
                     categories[novoLeadStageId].push(lead);
                 } else if (categories[lead.stage_id]) {
                     categories[lead.stage_id].push(lead);
@@ -366,7 +409,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         const notConvertedCount = (categorizedLeads[stagesByName['Finalizados']?.id] || []).filter(l => l.outcome === 'nao_convertido').length;
 
         return {
-            total: filteredLeads.length,
+            total: filteredLeads.filter(l => l.salespersonId === user.id && !l.details?.transferred_from).length,
             converted: convertedCount,
             notConverted: notConvertedCount,
             reallocated: getCount('Remanejados'),
@@ -377,7 +420,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             scheduled: getCount('Agendado'),
             finished: convertedCount + notConvertedCount,
         };
-    }, [filteredLeads, categorizedLeads, stagesByName]);
+    }, [filteredLeads, categorizedLeads, stagesByName, user.id]);
     
     const kpiCardsToRender = useMemo(() => {
         if (!activeCompany) return [];
@@ -398,7 +441,7 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         let colorIndex = 0;
         
         myCompanyStages.forEach(stage => {
-            if (['Novos Leads', 'Finalizados', 'Remanejados'].includes(stage.name)) {
+            if (['Novos Leads', 'Finalizados', 'Remanejados', 'Atendimentos Transferidos'].includes(stage.name)) {
                 return;
             }
             
@@ -458,6 +501,13 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
             setLeadToReassign(null);
         }
     };
+    
+    const handleConfirmTransfer = async (newOwnerId: string, feedbackText: string, images: string[]) => {
+        if (leadToTransfer) {
+            await transferProspectLead(leadToTransfer.id, newOwnerId, leadToTransfer.salespersonId, { text: feedbackText, images });
+            setLeadToTransfer(null);
+        }
+    };
 
     const handleReopenRequest = (lead: ProspectAILead) => {
         setLeadToReopen(lead);
@@ -479,8 +529,9 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
         </div>
     );
     
-    const columnsToRender = myCompanyStages.filter(s => s.name !== 'Remanejados');
+    const columnsToRender = myCompanyStages.filter(s => s.name !== 'Remanejados' && s.name !== 'Atendimentos Transferidos');
     const reallocatedColumn = myCompanyStages.find(s => s.name === 'Remanejados');
+    const transferredColumn = myCompanyStages.find(s => s.name === 'Atendimentos Transferidos');
 
     const kpiSettings = activeCompany?.prospectAISettings?.show_monthly_leads_kpi;
     const showMonthlyKpi = kpiSettings?.enabled && (kpiSettings.visible_to === 'all' || kpiSettings.visible_to.includes(user.id));
@@ -640,9 +691,11 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                 lead={lead}
                                 isManagerView={isManagerView}
                                 onReassign={setLeadToReassign}
+                                onTransfer={setLeadToTransfer}
                                 allSalespeople={teamMembers}
                                 onReopenRequest={handleReopenRequest}
                                 isPending={true}
+                                currentUserId={user.id}
                             />
                         ))}
                     </ProspectColumn>
@@ -681,10 +734,12 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                         isProspectingActionable={isNovosLeadsColumn}
                                         isDisabled={isNovosLeadsColumn && (hasLeadInProgress || isProspectingLocked || index > 0)} 
                                         isManagerView={isManagerView} 
-                                        onReassign={setLeadToReassign} 
+                                        onReassign={setLeadToReassign}
+                                        onTransfer={setLeadToTransfer} 
                                         allSalespeople={teamMembers}
                                         onReopenRequest={handleReopenRequest}
                                         isPending={pendingLeadIds.has(lead.id)}
+                                        currentUserId={user.id}
                                     />
                                 ))
                                 : placeholderCard
@@ -719,10 +774,30 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                                         isReassignedAwayView={true} 
                                         isManagerView={isManagerView} 
                                         allSalespeople={teamMembers}
+                                        currentUserId={user.id}
                                     />
                                 ))
                                 : placeholderCard
                             }
+                        </ProspectColumn>
+                    );
+                })()}
+                {transferredColumn && (() => {
+                    const transferredLeads = categorizedLeads[transferredColumn.id] || [];
+                    return (
+                        <ProspectColumn title={transferredColumn.name} count={transferredLeads.length}>
+                            {transferredLeads.length > 0
+                                ? transferredLeads.map(lead => (
+                                    <LeadCard
+                                        key={lead.id}
+                                        lead={lead}
+                                        isTransferredAwayView={true}
+                                        isManagerView={isManagerView}
+                                        allSalespeople={teamMembers}
+                                        currentUserId={user.id}
+                                    />
+                                ))
+                                : placeholderCard}
                         </ProspectColumn>
                     );
                 })()}
@@ -757,6 +832,16 @@ const ProspectAIScreen: React.FC<ProspectAIScreenProps> = ({ onBack, onSwitchToH
                     lead={leadToReassign}
                     salespeople={allSalespeople.filter(sp => sp.id !== leadToReassign.salespersonId)}
                     onConfirm={handleConfirmReassignment}
+                />
+            )}
+            
+            {leadToTransfer && (
+                <TransferLeadModal
+                    isOpen={!!leadToTransfer}
+                    onClose={() => setLeadToTransfer(null)}
+                    lead={leadToTransfer}
+                    salespeople={allSalespeople.filter(sp => sp.id !== leadToTransfer.salespersonId)}
+                    onConfirm={handleConfirmTransfer}
                 />
             )}
 

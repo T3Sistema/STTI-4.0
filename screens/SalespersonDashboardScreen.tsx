@@ -238,6 +238,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
             user={user}
             onLogout={onLogout}
             showBackButton={availableToolsCount > 1}
+            allSalespeople={allSalespeople}
         />;
     }
     

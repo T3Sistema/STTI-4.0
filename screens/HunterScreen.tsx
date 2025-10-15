@@ -43,6 +43,8 @@ const getStageColorClasses = (stageName: string) => {
         case 'Remanejados':
         case 'Round-Robin':
             return { bar: 'bg-purple-500', badge: 'bg-purple-500 text-white' };
+        case 'Atendimentos Transferidos':
+            return { bar: 'bg-indigo-500', badge: 'bg-indigo-500 text-white' };
         case 'Finalizados':
             return { bar: 'bg-slate-500', badge: 'bg-slate-500 text-white' };
         default:
@@ -98,7 +100,9 @@ const HunterLeadHistoryModal: React.FC<{
     lead: HunterLead;
     stages: PipelineStage[];
     onAction: (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => Promise<void>;
-}> = ({ isOpen, onClose, lead, stages, onAction }) => {
+    onTransfer: (lead: HunterLead, feedback: { text: string, images: string[] }, newSalespersonId: string) => Promise<void>;
+    salespeople: TeamMember[];
+}> = ({ isOpen, onClose, lead, stages, onAction, onTransfer, salespeople }) => {
     const [feedbackText, setFeedbackText] = useState('');
     const [feedbackImages, setFeedbackImages] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,6 +110,8 @@ const HunterLeadHistoryModal: React.FC<{
     const [appointmentDate, setAppointmentDate] = useState('');
     const [appointmentTime, setAppointmentTime] = useState('');
     const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+    const [showTransfer, setShowTransfer] = useState(false);
+    const [transferTargetId, setTransferTargetId] = useState('');
 
     const events = useMemo(() => generateHunterLeadEvents(lead, stages), [lead, stages]);
     
@@ -117,6 +123,8 @@ const HunterLeadHistoryModal: React.FC<{
             setFeedbackText('');
             setFeedbackImages([]);
             setIsSubmitting(false);
+            setShowTransfer(false);
+            setTransferTargetId('');
         }
     }, [isOpen]);
 
@@ -151,6 +159,20 @@ const HunterLeadHistoryModal: React.FC<{
         
         setIsSubmitting(true);
         await onAction(lead, feedbackText, feedbackImages, targetStage.id, outcome, appointmentDateTime);
+        onClose();
+    };
+    
+    const handleTransfer = async () => {
+        if (!feedbackText.trim()) {
+            alert('Por favor, registre um feedback antes de transferir.');
+            return;
+        }
+        if (!transferTargetId) {
+            alert('Por favor, selecione um vendedor para transferir.');
+            return;
+        }
+        setIsSubmitting(true);
+        await onTransfer(lead, { text: feedbackText, images: feedbackImages }, transferTargetId);
         onClose();
     };
     
@@ -260,20 +282,48 @@ const HunterLeadHistoryModal: React.FC<{
                     <div className="pt-4 border-t border-dark-border">
                         <h4 className="text-center text-sm font-bold text-dark-secondary mb-3">Próximas Ações</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {nextStage && (
-                                <button onClick={() => handlePerformAction(nextStage.name)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 sm:col-span-2">
-                                    <ArrowRightIcon className="w-5 h-5"/> Mover para {nextStage.name}
-                                </button>
+                             {!showTransfer ? (
+                                <>
+                                    {nextStage && (
+                                        <button onClick={() => handlePerformAction(nextStage.name)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 sm:col-span-2">
+                                            <ArrowRightIcon className="w-5 h-5"/> Mover para {nextStage.name}
+                                        </button>
+                                    )}
+                                    <button onClick={handleOpenAppointmentModal} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+                                        <CalendarIcon className="w-5 h-5"/> Agendar
+                                    </button>
+                                    <button onClick={() => handlePerformAction('Finalizados', 'convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-green-500/20 text-green-300 hover:bg-green-500/30">
+                                        <CheckCircleIcon className="w-5 h-5"/> Lead convertido
+                                    </button>
+                                    <button onClick={() => setShowTransfer(true)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30">
+                                        <SwitchHorizontalIcon className="w-5 h-5"/> Transferir
+                                    </button>
+                                    <button onClick={() => handlePerformAction('Finalizados', 'nao_convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-red-500/20 text-red-300 hover:bg-red-500/30">
+                                        <XCircleIcon className="w-5 h-5"/> Lead não convertido
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="sm:col-span-2 space-y-3 p-3 bg-dark-background rounded-lg border border-indigo-500/30">
+                                    <h5 className="font-bold text-center text-indigo-300">Transferir Atendimento</h5>
+                                    <select
+                                        value={transferTargetId}
+                                        onChange={(e) => setTransferTargetId(e.target.value)}
+                                        className="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md"
+                                    >
+                                        <option value="">Selecione um vendedor...</option>
+                                        {salespeople.map(sp => (
+                                            <option key={sp.id} value={sp.id}>{sp.name}</option>
+                                        ))}
+                                    </select>
+                                    {salespeople.length === 0 && (
+                                        <p className="text-center text-xs text-yellow-400">Nenhum outro vendedor disponível para transferência.</p>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setShowTransfer(false)} className="flex-1 action-btn !p-2 !text-xs bg-dark-border/50 text-dark-secondary">Cancelar</button>
+                                        <button onClick={handleTransfer} disabled={!transferTargetId || isSubmitting} className="flex-1 action-btn !p-2 !text-xs bg-indigo-500/20 text-indigo-300">Confirmar</button>
+                                    </div>
+                                </div>
                             )}
-                            <button onClick={handleOpenAppointmentModal} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
-                                <CalendarIcon className="w-5 h-5"/> Agendar
-                            </button>
-                            <button onClick={() => handlePerformAction('Finalizados', 'convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-green-500/20 text-green-300 hover:bg-green-500/30">
-                                <CheckCircleIcon className="w-5 h-5"/> Lead convertido
-                            </button>
-                            <button onClick={() => handlePerformAction('Finalizados', 'nao_convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-red-500/20 text-red-300 hover:bg-red-500/30 sm:col-span-2">
-                                <XCircleIcon className="w-5 h-5"/> Lead não convertido
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -315,7 +365,9 @@ const HunterLeadCard: React.FC<{
     isDisabled?: boolean;
     isFinalized?: boolean;
     onReopen?: () => void;
-}> = ({ lead, isNewLead, stageName, onStartProspecting, onOpenActions, isDisabled = false, isFinalized = false, onReopen }) => {
+    isTransferredAwayView?: boolean;
+    transferredToName?: string;
+}> = ({ lead, isNewLead, stageName, onStartProspecting, onOpenActions, isDisabled = false, isFinalized = false, onReopen, isTransferredAwayView = false, transferredToName }) => {
     const { updateHunterLead } = useData();
     const [isCopied, setIsCopied] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
@@ -329,7 +381,7 @@ const HunterLeadCard: React.FC<{
     };
 
     const handleClick = () => {
-        if (isEditingName) return;
+        if (isEditingName || isTransferredAwayView) return;
         if (isDisabled) return;
         if (isNewLead) {
             onStartProspecting();
@@ -352,11 +404,13 @@ const HunterLeadCard: React.FC<{
     const lastFeedback = lead.feedback?.length > 0 ? lead.feedback[lead.feedback.length - 1] : null;
     const sentiment = getFeedbackSentiment(lastFeedback?.text);
     const isNameEditable = lead.leadName.toLowerCase() === 'sem nome';
-    const hasDetails = lead.details && Object.keys(lead.details).length > 0;
+    const hasDetails = lead.details && Object.keys(lead.details).filter(k => !k.startsWith('transferred_')).length > 0;
 
 
     let borderColorClass = 'border-dark-border';
-    if (isFinalized) {
+    if (isTransferredAwayView) {
+        borderColorClass = 'border-indigo-500/60 opacity-80';
+    } else if (isFinalized) {
         if (lead.outcome === 'convertido') borderColorClass = 'border-dark-success';
         else if (lead.outcome === 'nao_convertido') borderColorClass = 'border-dark-error';
         else borderColorClass = 'border-dark-secondary';
@@ -369,6 +423,27 @@ const HunterLeadCard: React.FC<{
             case 'Agendado': borderColorClass = 'border-dark-stage-scheduled'; break;
             default: borderColorClass = 'border-dark-border'; break;
         }
+    }
+
+    if (isTransferredAwayView) {
+        return (
+             <Card className={`p-4 transition-all duration-300 relative border-2 ${borderColorClass}`}>
+                <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-dark-background border border-dark-border flex items-center justify-center">
+                        <UserCircleIcon className="w-6 h-6 text-indigo-400" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-semibold leading-normal text-dark-text line-through">{lead.leadName}</h4>
+                        <p className="text-xs leading-normal text-dark-secondary">{new Date(lead.details?.transferred_at || lead.createdAt).toLocaleString('pt-BR')}</p>
+                    </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-dark-border text-center">
+                    <p className="text-sm font-semibold text-indigo-400 flex items-center justify-center gap-2">
+                        <ArrowRightIcon /> Transferido para {transferredToName}
+                    </p>
+                </div>
+             </Card>
+        )
     }
 
     return (
@@ -434,7 +509,7 @@ const HunterLeadCard: React.FC<{
                              <div className="space-y-2">
                                 <h5 className="text-xs font-bold uppercase text-dark-secondary">Informações Adicionais:</h5>
                                 <ul className="list-disc list-inside space-y-1 text-sm text-dark-text">
-                                    {Object.values(lead.details!).map((value, index) => (
+                                    {Object.entries(lead.details!).filter(([key]) => !key.startsWith('transferred_')).map(([_, value], index) => (
                                         <li key={index}>{String(value)}</li>
                                     ))}
                                 </ul>
@@ -498,7 +573,7 @@ const HunterProspectColumn: React.FC<{ title: string; count: number; children: R
   };
 
 const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack, isManagerView = false }) => {
-    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers, addHunterLead, toolboxUrl } = useData();
+    const { hunterLeads, prospectaiLeads, updateHunterLead, addHunterLeadAction, teamMembers, addHunterLead, toolboxUrl, transferHunterLead } = useData();
     const [selectedLead, setSelectedLead] = useState<HunterLead | null>(null);
     const [leadToProspect, setLeadToProspect] = useState<HunterLead | null>(null);
     const [isPerformanceView, setIsPerformanceView] = useState(false);
@@ -516,12 +591,22 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
         setSearchQueries(prev => ({ ...prev, [stageId]: query }));
     };
 
-    const companyPipeline = useMemo(() => 
-        activeCompany.pipeline_stages.filter(s => s.isEnabled).sort((a, b) => a.stageOrder - b.stageOrder), 
-    [activeCompany]);
+    const companyPipeline = useMemo(() => {
+        const stages = [...activeCompany.pipeline_stages];
+        if (!stages.some(s => s.name === 'Atendimentos Transferidos')) {
+            stages.push({
+                id: 'temp-transferred-id',
+                name: 'Atendimentos Transferidos',
+                stageOrder: 101,
+                isFixed: true,
+                isEnabled: true,
+            });
+        }
+        return stages.filter(s => s.isEnabled).sort((a, b) => a.stageOrder - b.stageOrder);
+    }, [activeCompany]);
 
     const myLeads = useMemo(() => {
-        const baseLeads = hunterLeads.filter(lead => lead.salespersonId === user.id);
+        const baseLeads = hunterLeads.filter(lead => lead.salespersonId === user.id || lead.details?.transferred_from === user.id);
         if (period === 'all') return baseLeads;
 
         let startDate: Date;
@@ -551,14 +636,18 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
     const categorizedLeads = useMemo(() => {
         const categories: Record<string, HunterLead[]> = {};
         companyPipeline.forEach(stage => { categories[stage.id] = []; });
+        
+        const transferredStageId = companyPipeline.find(s => s.name === 'Atendimentos Transferidos')?.id;
 
         myLeads.forEach(lead => {
-            if (categories[lead.stage_id]) {
+            if (lead.details?.transferred_from === user.id && transferredStageId) {
+                categories[transferredStageId].push(lead);
+            } else if (lead.salespersonId === user.id && categories[lead.stage_id]) {
                 categories[lead.stage_id].push(lead);
             }
         });
         return categories;
-    }, [myLeads, companyPipeline]);
+    }, [myLeads, companyPipeline, user.id]);
     
     const hasLeadInProgress = useMemo(() => {
         const firstAttemptStage = companyPipeline.find(s => s.name === 'Primeira Tentativa');
@@ -831,6 +920,8 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
                         leadsForColumn.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                     }
 
+                    const isTransferredColumn = stage.name === 'Atendimentos Transferidos';
+
                     return (
                         <HunterProspectColumn key={stage.id} title={stage.name} count={leadsForColumn.length}>
                             <div className="relative mb-2">
@@ -855,6 +946,8 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
                                         onReopen={() => setLeadToReopen(lead)}
                                         isDisabled={!isManagerView && isNewLeadColumn && (hasLeadInProgress || index > 0)}
                                         isFinalized={stage.name === 'Finalizados'}
+                                        isTransferredAwayView={isTransferredColumn}
+                                        transferredToName={isTransferredColumn ? teamMembers.find(tm => tm.id === lead.details?.transferred_to)?.name || 'desconhecido' : undefined}
                                     />
                                 ))
                                 : <div className="border-2 border-dashed border-dark-border rounded-lg p-8 text-center text-dark-secondary">Nenhum lead nesta etapa.</div>
@@ -871,6 +964,8 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
                     lead={selectedLead}
                     stages={companyPipeline}
                     onAction={addHunterLeadAction}
+                    onTransfer={async (lead, feedback, newSalespersonId) => await transferHunterLead(lead.id, newSalespersonId, user.id, feedback)}
+                    salespeople={teamMembers.filter(tm => tm.id !== user.id && tm.companyId === user.companyId && tm.role === 'Vendedor')}
                 />
             )}
 

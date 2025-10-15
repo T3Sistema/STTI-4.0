@@ -109,6 +109,11 @@ export interface ProspectAISettings {
     visible_to: 'all' | string[]; // 'all' or array of salesperson IDs
   };
   business_hours?: BusinessHours;
+  overdue_leads_lock?: {
+    enabled: boolean;
+    apply_to: 'all' | string[]; // 'all' or array of salesperson IDs
+    lock_after_time: string; // HH:mm format
+  };
 }
 
 export interface Company {
@@ -232,6 +237,9 @@ export interface ProspectAILead {
     reassigned_from?: string;
     reassigned_to?: string;
     reassigned_at?: string;
+    transferred_from?: string;
+    transferred_to?: string;
+    transferred_at?: string;
   };
   appointment_at?: string;
   feedback?: {
@@ -258,7 +266,12 @@ export interface HunterLead {
   lastActivity?: string;
   prospected_at?: string;
   appointment_at?: string;
-  details?: { [key: string]: any; };
+  details?: { 
+    [key: string]: any;
+    transferred_from?: string;
+    transferred_to?: string;
+    transferred_at?: string;
+  };
 }
 
 

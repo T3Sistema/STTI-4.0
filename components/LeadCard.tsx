@@ -35,9 +35,12 @@ interface LeadCardProps {
     isManagerView?: boolean;
     allSalespeople?: TeamMember[];
     onReassign?: (lead: ProspectAILead) => void;
+    onTransfer?: (lead: ProspectAILead) => void;
     isReassignedAwayView?: boolean;
+    isTransferredAwayView?: boolean;
     onReopenRequest?: (lead: ProspectAILead) => void;
     isPending?: boolean;
+    currentUserId: string;
 }
 
 const DetailItem: React.FC<{ icon: React.ReactNode; label: string; value: string | undefined | null; }> = ({ icon, label, value }) => {
@@ -88,8 +91,32 @@ const feedbackColorClasses = {
     neutral: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300', // Amarelo
 };
 
+// @-fix: Defined the `generateLeadEvents` function, which was being called but was not defined in this file, causing a "Cannot find name" error.
+const generateLeadEvents = (lead: ProspectAILead, allSalespeople: TeamMember[], pipeline: PipelineStage[]) => {
+    const events: any[] = [];
+    events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
+    if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
+    if (lead.feedback) lead.feedback.forEach(feedbackItem => {
+        const stage = pipeline.find(s => s.id === feedbackItem.stageId);
+        events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, stageName: stage ? stage.name : null, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> });
+    });
+    if (lead.details?.reassigned_at) {
+        const from = allSalespeople.find(s => s.id === lead.details.reassigned_from)?.name || 'Desconhecido';
+        const to = allSalespeople.find(s => s.id === lead.details.reassigned_to)?.name || 'Desconhecido';
+        events.push({ type: 'reassignment', date: new Date(lead.details.reassigned_at), text: `Remanejado de ${from} para ${to}`, icon: <SwitchHorizontalIcon className="w-4 h-4 text-purple-400" /> });
+    }
+    if (lead.outcome && lead.last_feedback_at) {
+        const outcomeText = lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido';
+        const icon = lead.outcome === 'convertido' ? <CheckCircleIcon className="w-4 h-4 text-green-400" /> : <XIcon className="w-4 h-4 text-red-400" />;
+        events.push({ type: 'finalization', date: new Date(lead.last_feedback_at), text: `Lead finalizado - ${outcomeText}`, icon: icon });
+    }
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return events;
+};
 
-const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, isReassignedAwayView = false, onReopenRequest, isPending = false }) => {
+
+// FIX: Changed export to a named export to resolve module loading issue.
+export const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActionable = false, isDisabled = false, isManagerView = false, allSalespeople = [], onReassign, onTransfer, isReassignedAwayView = false, isTransferredAwayView = false, onReopenRequest, isPending = false, currentUserId }) => {
     const { companies, teamMembers, addProspectLeadFeedback, updateProspectLeadStatus, updateProspectLead } = useData();
     const [isCopied, setIsCopied] = useState(false);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -281,7 +308,9 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
     let statusBorderClass = 'border-2 ';
     const isReassigned = !!lead.details?.reassigned_from;
 
-    if (isReassignedAwayView) {
+    if (isTransferredAwayView) {
+        statusBorderClass += 'border-indigo-500/60 opacity-80';
+    } else if (isReassignedAwayView) {
         statusBorderClass += 'border-purple-500/60 opacity-70';
     } else if (isReassigned && !isReassignedAwayView) {
         statusBorderClass += 'border-purple-500/80';
@@ -357,6 +386,28 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                 <div className="mt-3 pt-3 border-t border-dark-border text-center">
                     <p className="text-sm font-semibold text-purple-400 flex items-center justify-center gap-2">
                         <ArrowRightIcon /> Remanejado para {reassignedToName}
+                    </p>
+                </div>
+             </Card>
+        )
+    }
+    
+    if (isTransferredAwayView) {
+        const transferredToName = allSalespeople?.find(sp => sp.id === lead.details?.transferred_to)?.name || 'outro vendedor';
+        return (
+             <Card className={cardClassName} onClick={handleCardClick}>
+                <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-dark-background border border-dark-border flex items-center justify-center">
+                        <UserCircleIcon className="w-6 h-6 text-indigo-400" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-semibold leading-normal text-dark-text">{lead.leadName}</h4>
+                        <p className="text-xs leading-normal text-dark-secondary">{new Date(lead.details?.transferred_at || lead.createdAt).toLocaleString('pt-BR')}</p>
+                    </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-dark-border text-center">
+                    <p className="text-sm font-semibold text-indigo-400 flex items-center justify-center gap-2">
+                        <ArrowRightIcon /> Transferido para {transferredToName}
                     </p>
                 </div>
              </Card>
@@ -456,7 +507,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                             {lead.details && Object.entries(lead.details).map(([key, value]) => {
                                 if (!value || typeof value !== 'string' && typeof value !== 'number') return null;
                                 // Ignora campos de remanejamento que já têm tratamento especial
-                                if (key.startsWith('reassigned_')) return null;
+                                if (key.startsWith('reassigned_') || key.startsWith('transferred_')) return null;
                                 
                                 const config = detailConfig[key];
                                 const label = config ? config.label : formatKeyToLabel(key);
@@ -591,6 +642,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                                             </button>
                                         );
                                     })}
+                                    {onTransfer && (
+                                        <button onClick={(e) => { e.stopPropagation(); if (onTransfer) onTransfer(lead); }} className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2 px-3 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors">
+                                            <SwitchHorizontalIcon className="w-4 h-4" /> Transferir
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -598,150 +654,100 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick, isProspectingActiona
                 )}
             </Card>
 
-            <Modal isOpen={isAppointmentModalOpen} onClose={() => setIsAppointmentModalOpen(false)}>
-                <form onSubmit={handleConfirmAppointment} className="space-y-4" onClick={e => e.stopPropagation()}>
+            <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)}>
+                 <div className="p-2 space-y-4">
+                    <h2 className="text-2xl font-bold text-center">Detalhes do Lead: {lead.leadName}</h2>
+                     <div className="max-h-[60vh] overflow-y-auto pr-2 my-4 border-y border-dark-border py-4">
+                        <div className="relative pl-5 py-2">
+                             <div className="absolute left-2.5 top-0 h-full w-0.5 bg-dark-border"></div>
+                             {useMemo(() => generateLeadEvents(lead, teamMembers, pipelineStages), [lead, teamMembers, pipelineStages]).map((event, eventIndex, events) => {
+                                 let durationString: string | null = null;
+                                 if (eventIndex > 0) {
+                                     const prevEvent = events[eventIndex - 1];
+                                     const durationMs = event.date.getTime() - prevEvent.date.getTime();
+                                     if (durationMs >= 1000) {
+                                         durationString = formatDuration(durationMs);
+                                     }
+                                 }
+                                return (
+                                    <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
+                                        <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
+                                            {event.icon}
+                                        </div>
+                                        <div className="pl-4">
+                                            <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                            <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
+                                            {(durationString || (event.type === 'feedback' && event.stageName)) && (
+                                                <div className="flex items-center gap-4 mt-1.5">
+                                                    {durationString && (
+                                                        <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                                                            <ClockIcon className="w-3.5 h-3.5" />
+                                                            <span>{`Após ${durationString}`}</span>
+                                                        </p>
+                                                    )}
+                                                    {event.type === 'feedback' && event.stageName && (
+                                                        <p className="text-xs font-semibold text-cyan-400">
+                                                            na etapa: {event.stageName}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {event.type === 'feedback' && event.images && event.images.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    {event.images.map((img: string, i: number) => (
+                                                        <button key={i} onClick={() => setExpandedImageUrl(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
+                                                            <img src={img} alt="feedback" className="w-full h-full object-cover"/>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                             })}
+                        </div>
+                    </div>
+                     <div className="pt-4 border-t border-dark-border flex flex-col sm:flex-row justify-center gap-3">
+                         {isManagerView && onReassign && lead.salespersonId !== currentUserId && (
+                             <button onClick={handleReassignClick} className="px-4 py-2 rounded-md bg-purple-600/80 text-white font-bold hover:bg-purple-600">
+                                Remanejar Lead
+                            </button>
+                         )}
+                         {isFinalized && onReopenRequest && (
+                             <button onClick={handleReopenClick} className="px-4 py-2 rounded-md bg-blue-600/80 text-white font-bold hover:bg-blue-600 flex items-center gap-2">
+                                <ArrowPathIcon className="w-4 h-4"/> Reabrir Atendimento
+                            </button>
+                         )}
+                         <button onClick={() => setIsDetailModalOpen(false)} className="px-4 py-2 rounded-md bg-dark-border/50 hover:bg-dark-border font-bold">
+                            Fechar
+                        </button>
+                     </div>
+                 </div>
+            </Modal>
+
+             <Modal isOpen={isAppointmentModalOpen} onClose={() => setIsAppointmentModalOpen(false)}>
+                <form onSubmit={handleConfirmAppointment} className="space-y-4">
                     <h2 className="text-2xl font-bold text-center">Agendar Atendimento</h2>
                     <p className="text-center text-dark-secondary">Selecione a data e hora para o lead <strong className="text-dark-text">{lead.leadName}</strong>.</p>
                     <div className="grid grid-cols-2 gap-4 pt-4">
                         <div>
-                            <label htmlFor={`appointmentDate-${lead.id}`} className="block text-sm font-medium text-dark-secondary mb-1">Data</label>
-                            <input type="date" id={`appointmentDate-${lead.id}`} value={appointmentDate} onChange={(e) => setAppointmentDate(e.target.value)} required className="input-style" min={new Date().toISOString().split('T')[0]} />
+                            <label className="block text-sm font-medium text-dark-secondary mb-1">Data</label>
+                            <input type="date" value={appointmentDate} onChange={(e) => setAppointmentDate(e.target.value)} required className="input-style" min={new Date().toISOString().split('T')[0]}/>
                         </div>
                         <div>
-                            <label htmlFor={`appointmentTime-${lead.id}`} className="block text-sm font-medium text-dark-secondary mb-1">Hora</label>
-                            <input type="time" id={`appointmentTime-${lead.id}`} value={appointmentTime} onChange={(e) => setAppointmentTime(e.target.value)} required className="input-style" />
+                            <label className="block text-sm font-medium text-dark-secondary mb-1">Hora</label>
+                            <input type="time" value={appointmentTime} onChange={(e) => setAppointmentTime(e.target.value)} required className="input-style"/>
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={() => setIsAppointmentModalOpen(false)} className="px-4 py-2 rounded-md bg-dark-border/50 hover:bg-dark-border transition-colors font-bold">Cancelar</button>
-                        <button type="submit" className="px-4 py-2 rounded-md bg-dark-primary text-dark-background font-bold hover:opacity-90">Confirmar Agendamento</button>
+                        <button type="button" onClick={() => setIsAppointmentModalOpen(false)} className="px-4 py-2 rounded-md bg-dark-border/50 hover:bg-dark-border font-bold">Cancelar</button>
+                        <button type="submit" className="px-4 py-2 rounded-md bg-dark-primary text-dark-background font-bold hover:opacity-90">Agendar</button>
                     </div>
-                     <style>{`
-                        .input-style { width: 100%; padding: 0.5rem 0.75rem; background-color: #0A0F1E; border: 1px solid #243049; border-radius: 0.375rem; color: #E0E0E0; }
-                        .input-style:focus { outline: none; box-shadow: 0 0 0 2px #00D1FF; }
-                        .input-style::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-                      `}</style>
+                    <style>{`.input-style { width: 100%; padding: 0.5rem 0.75rem; background-color: #0A0F1E; border: 1px solid #243049; border-radius: 0.375rem; color: #E0E0E0; }.input-style::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }`}</style>
                 </form>
             </Modal>
-            
-            <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)}>
-                <div className="p-2">
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-dark-background border border-dark-border flex items-center justify-center">
-                            <UserCircleIcon className="w-8 h-8 text-dark-primary" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-dark-text">{lead.leadName}</h2>
-                            <p className="text-sm text-dark-secondary">Histórico Completo do Lead</p>
-                        </div>
-                    </div>
 
-                    <div className="max-h-[60vh] overflow-y-auto pr-2">
-                         {(() => {
-                                const events: any[] = [];
-                                events.push({ type: 'creation', date: new Date(lead.createdAt), text: 'Lead recebido', icon: <PlusIcon className="w-4 h-4 text-blue-400" /> });
-                                if (lead.prospected_at) events.push({ type: 'prospecting', date: new Date(lead.prospected_at), text: 'Prospecção iniciada', icon: <BullseyeIcon className="w-4 h-4 text-yellow-400" /> });
-                                if (lead.feedback) lead.feedback.forEach(feedbackItem => {
-                                    const stage = pipelineStages.find(s => s.id === feedbackItem.stageId);
-                                    events.push({ type: 'feedback', date: new Date(feedbackItem.createdAt), text: feedbackItem.text, images: feedbackItem.images, stageName: stage ? stage.name : null, icon: <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4 text-gray-400" /> });
-                                });
-                                if (lead.details?.reassigned_at) {
-                                    const from = allSalespeople.find(s => s.id === lead.details.reassigned_from)?.name || 'Desconhecido';
-                                    const to = allSalespeople.find(s => s.id === lead.details.reassigned_to)?.name || 'Desconhecido';
-                                    events.push({ type: 'reassignment', date: new Date(lead.details.reassigned_at), text: `Remanejado de ${from} para ${to}`, icon: <SwitchHorizontalIcon className="w-4 h-4 text-purple-400" /> });
-                                }
-                                if (lead.outcome && lead.last_feedback_at) {
-                                    const outcomeText = lead.outcome === 'convertido' ? 'Convertido' : 'Não Convertido';
-                                    const icon = lead.outcome === 'convertido' ? <CheckCircleIcon className="w-4 h-4 text-green-400" /> : <XIcon className="w-4 h-4 text-red-400" />;
-                                    events.push({ type: 'finalization', date: new Date(lead.last_feedback_at), text: `Lead finalizado - ${outcomeText}`, icon: icon });
-                                }
-                                events.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-                                return (
-                                    <div className="relative pl-5 py-2">
-                                        <div className="absolute left-2.5 top-0 h-full w-0.5 bg-dark-border"></div>
-                                        {events.map((event, eventIndex) => {
-                                            let durationString: string | null = null;
-                                            if (eventIndex > 0) {
-                                                const prevEvent = events[eventIndex - 1];
-                                                const durationMs = event.date.getTime() - prevEvent.date.getTime();
-                                                if (durationMs >= 1000) { // Only show for durations of 1s or more
-                                                   durationString = formatDuration(durationMs);
-                                                }
-                                            }
-                                            return (
-                                                <div key={eventIndex} className={`relative ${eventIndex === events.length - 1 ? '' : 'pb-4'}`}>
-                                                    <div className="absolute -left-[23px] top-0.5 w-5 h-5 rounded-full bg-dark-card border-2 border-dark-border flex items-center justify-center">
-                                                        {event.icon}
-                                                    </div>
-                                                    <div className="pl-4">
-                                                        <p className="text-xs text-dark-secondary">{event.date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                                        <p className="text-sm font-medium text-dark-text mt-1 whitespace-pre-wrap">{event.text}</p>
-                                                        {(durationString || (event.type === 'feedback' && event.stageName)) && (
-                                                            <div className="flex items-center gap-4 mt-1.5">
-                                                                {durationString && (
-                                                                    <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-                                                                        <ClockIcon className="w-3.5 h-3.5" />
-                                                                        <span>{`Após ${durationString}`}</span>
-                                                                    </p>
-                                                                )}
-                                                                {event.type === 'feedback' && event.stageName && (
-                                                                    <p className="text-xs font-semibold text-cyan-400">
-                                                                        na etapa: {event.stageName}
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        {event.type === 'feedback' && event.images && event.images.length > 0 && (
-                                                            <div className="flex flex-wrap gap-1 mt-2">
-                                                                {event.images.map((img: string, i: number) => (
-                                                                    <button key={i} onClick={() => setExpandedImageUrl(img)} className="block w-12 h-12 rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-dark-primary">
-                                                                        <img src={img} alt="feedback" className="w-full h-full object-cover"/>
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                );
-                            })()}
-                    </div>
-                    {isManagerView && onReassign && !isFinalized &&(
-                        <div className="mt-6 pt-4 border-t border-dark-border">
-                             <button
-                                onClick={handleReassignClick}
-                                className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-3 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
-                            >
-                                <SwitchHorizontalIcon className="w-4 h-4" />
-                                Remanejar Lead
-                            </button>
-                        </div>
-                    )}
-                    {isFinalized && !isManagerView && onReopenRequest && (
-                         <div className="mt-6 pt-4 border-t border-dark-border">
-                             <button
-                                onClick={handleReopenClick}
-                                className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-3 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
-                            >
-                                <ArrowPathIcon className="w-4 h-4" />
-                                Reabrir Atendimento
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </Modal>
-
-            {expandedImageUrl && (
-                <ImageLightbox
-                    imageUrl={expandedImageUrl}
-                    onClose={() => setExpandedImageUrl(null)}
-                />
-            )}
+            {expandedImageUrl && <ImageLightbox imageUrl={expandedImageUrl} onClose={() => setExpandedImageUrl(null)} />}
         </>
     );
 };
-
-export default LeadCard;

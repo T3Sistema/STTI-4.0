@@ -1,4 +1,4 @@
-import React, { useState, useMemo, ChangeEvent } from 'react';
+import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useData } from '../hooks/useMockData';
 import { PipelineStage, TeamMember, Company, BusinessHours } from '../types';
 import Card from '../components/Card';
@@ -118,11 +118,33 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
     const [error, setError] = useState('');
     const [isKpiModalOpen, setKpiModalOpen] = useState(false);
     const [isDisableConfirmOpen, setDisableConfirmOpen] = useState(false);
-
-
+    const [showSuccess, setShowSuccess] = useState(false);
+    
     const company = useMemo(() => companies.find(c => c.id === companyId), [companies, companyId]);
+    
+    const defaultLockSettings = { enabled: false, apply_to: 'all', lock_after_time: '08:00' };
+
+    const [overdueLockSettings, setOverdueLockSettings] = useState(
+        company?.prospectAISettings?.overdue_leads_lock || defaultLockSettings
+    );
+
     const pipelineStages = useMemo(() => company?.pipeline_stages.sort((a, b) => a.stageOrder - b.stageOrder) || [], [company]);
     const companySalespeople = useMemo(() => teamMembers.filter(tm => tm.companyId === companyId && tm.role === 'Vendedor'), [teamMembers, companyId]);
+    
+    const originalLockSettings = company?.prospectAISettings?.overdue_leads_lock;
+
+    useEffect(() => {
+        if (company?.prospectAISettings?.overdue_leads_lock) {
+            setOverdueLockSettings(company.prospectAISettings.overdue_leads_lock);
+        } else {
+            setOverdueLockSettings(defaultLockSettings);
+        }
+    }, [company]);
+
+    const hasChanges = useMemo(() => {
+        return JSON.stringify(overdueLockSettings) !== JSON.stringify(originalLockSettings || defaultLockSettings);
+    }, [overdueLockSettings, originalLockSettings]);
+
 
     const handleAdd = () => {
         setEditingStage(undefined);
@@ -209,6 +231,46 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
         setKpiModalOpen(false);
     };
 
+    const handleLockEnabledChange = (enabled: boolean) => {
+        setOverdueLockSettings(prev => ({ ...prev, enabled }));
+    };
+
+    const handleLockTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setOverdueLockSettings(prev => ({...prev, lock_after_time: e.target.value}));
+    };
+
+    // @-fix: The 'prev' state variable is only accessible within the updater function of setState. Moved the logic inside to resolve the "Cannot find name 'prev'" error.
+    const handleLockApplyToChange = (mode: 'all' | 'specific') => {
+        if (mode === 'all') {
+            setOverdueLockSettings(prev => ({ ...prev, apply_to: 'all' }));
+        } else {
+            setOverdueLockSettings(prev => {
+                const currentSelection = Array.isArray(prev.apply_to) ? prev.apply_to : [];
+                return { ...prev, apply_to: currentSelection };
+            });
+        }
+    };
+
+    const handleSalespersonSelectionChange = (id: string) => {
+        const currentSelection = Array.isArray(overdueLockSettings.apply_to) ? overdueLockSettings.apply_to : [];
+        const newSelection = currentSelection.includes(id)
+            ? currentSelection.filter(spId => spId !== id)
+            : [...currentSelection, id];
+        setOverdueLockSettings(prev => ({ ...prev, apply_to: newSelection }));
+    };
+
+    const handleSaveLockSettings = async () => {
+        if (!company) return;
+        const newSettings = {
+            ...company.prospectAISettings,
+            overdue_leads_lock: overdueLockSettings,
+        };
+        await updateCompany({ ...company, prospectAISettings: newSettings });
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+    };
+
+
     if (!company) return <div>Carregando...</div>;
 
     return (
@@ -262,6 +324,77 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
             </div>
 
             <Card className="mt-8 p-6">
+                 <h3 className="text-xl font-bold text-dark-text mb-2">Bloqueio por Pendências</h3>
+                <p className="text-sm text-dark-secondary mb-4">Ative esta opção para impedir que vendedores prospectem novos leads enquanto tiverem atendimentos pendentes de dias anteriores.</p>
+                <div className="p-4 bg-dark-background rounded-lg border border-dark-border space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-semibold text-dark-text">Ativar bloqueio por pendências</p>
+                        </div>
+                        <label className="cursor-pointer">
+                            <div className="relative">
+                                <input type="checkbox" className="sr-only peer" checked={overdueLockSettings.enabled} onChange={(e) => handleLockEnabledChange(e.target.checked)} />
+                                <div className="w-10 h-5 bg-dark-border rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-dark-primary"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    {overdueLockSettings.enabled && (
+                        <div className="pt-4 border-t border-dark-border space-y-4 animate-fade-in">
+                            <div>
+                                <label htmlFor="lock_after_time" className="block text-sm font-medium text-dark-secondary mb-1">
+                                    Bloquear prospecção a partir das:
+                                </label>
+                                <input
+                                    type="time"
+                                    id="lock_after_time"
+                                    value={overdueLockSettings.lock_after_time || '08:00'}
+                                    onChange={handleLockTimeChange}
+                                    className="bg-dark-card border border-dark-border rounded-md px-3 py-1.5 text-sm"
+                                />
+                            </div>
+                             <p className="text-sm font-semibold text-dark-secondary">Aplicar regra para:</p>
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <label className="flex-1 flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer bg-dark-card/50 hover:border-dark-primary/30">
+                                    <input type="radio" name="apply_to" value="all" checked={overdueLockSettings.apply_to === 'all'} onChange={() => handleLockApplyToChange('all')} className="w-4 h-4 mr-3 text-dark-primary focus:ring-dark-primary"/>
+                                    <span className="text-sm font-medium">Todos os vendedores</span>
+                                </label>
+                                 <label className="flex-1 flex items-center p-3 rounded-lg border-2 transition-all cursor-pointer bg-dark-card/50 hover:border-dark-primary/30">
+                                    <input type="radio" name="apply_to" value="specific" checked={Array.isArray(overdueLockSettings.apply_to)} onChange={() => handleLockApplyToChange('specific')} className="w-4 h-4 mr-3 text-dark-primary focus:ring-dark-primary"/>
+                                    <span className="text-sm font-medium">Vendedores específicos</span>
+                                </label>
+                            </div>
+                            {Array.isArray(overdueLockSettings.apply_to) && (
+                                <div className="mt-3 p-3 border-t border-dark-border/50 max-h-48 overflow-y-auto space-y-2">
+                                    {companySalespeople.map(sp => (
+                                        <label key={sp.id} className="flex items-center p-2 rounded-md hover:bg-dark-border/50 cursor-pointer">
+                                            <input type="checkbox" checked={overdueLockSettings.apply_to.includes(sp.id)} onChange={() => handleSalespersonSelectionChange(sp.id)} className="w-4 h-4 mr-3 text-dark-primary focus:ring-dark-primary"/>
+                                            <img src={sp.avatarUrl} alt={sp.name} className="w-8 h-8 rounded-full mr-3" />
+                                            <span className="text-sm font-medium">{sp.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {(hasChanges || showSuccess) && (
+                        <div className="flex justify-end items-center mt-4 pt-4 border-t border-dark-border">
+                            {showSuccess && (
+                                <div className="text-green-400 text-sm font-semibold animate-fade-in mr-4">
+                                    Configurações salvas com sucesso!
+                                </div>
+                            )}
+                            {hasChanges && (
+                                <button onClick={handleSaveLockSettings} className="px-4 py-2 text-sm font-bold rounded-lg bg-dark-primary text-dark-background hover:opacity-90">
+                                    Salvar Alterações
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </Card>
+
+            <Card className="mt-8 p-6">
                 <h3 className="text-xl font-bold text-dark-text mb-2">Configurações de KPI</h3>
                 <p className="text-sm text-dark-secondary mb-4">Gerencie os indicadores de desempenho que seus vendedores podem visualizar.</p>
                 <div className="p-4 bg-dark-background rounded-lg border border-dark-border flex items-center justify-between">
@@ -272,7 +405,7 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
                     <label htmlFor="toggle-kpi" className="flex items-center cursor-pointer">
                         <div className="relative">
                             <input type="checkbox" id="toggle-kpi" className="sr-only peer" checked={kpiSettings.enabled} onChange={handleKpiToggle} />
-                            <div className="w-10 h-5 bg-dark-border rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-dark-primary"></div>
+                            <div className="w-10 h-5 bg-dark-border rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-dark-primary"></div>
                         </div>
                     </label>
                 </div>

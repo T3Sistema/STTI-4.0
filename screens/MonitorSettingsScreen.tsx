@@ -6,12 +6,12 @@ import { EyeIcon } from '../components/icons/EyeIcon';
 import { EyeOffIcon } from '../components/icons/EyeOffIcon';
 import { MonitorIcon } from '../components/icons/MonitorIcon';
 import AdminMonitorViewer from '../components/AdminMonitorViewer';
-import CompanyInfoCard from '../components/CompanyInfoCard';
 
 type View = 'company_selection' | 'user_selection' | 'chat_view';
+type Period = '7d' | '30d' | 'all' | 'custom';
 
 const MonitorSettingsScreen: React.FC = () => {
-    const { monitorSettings, updateMonitorSettings, teamMembers, companies, vehicles } = useData();
+    const { monitorSettings, updateMonitorSettings, teamMembers, companies, monitorChatHistory } = useData();
     const [prompt, setPrompt] = useState('');
     const [apiKey, setApiKey] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
@@ -23,6 +23,12 @@ const MonitorSettingsScreen: React.FC = () => {
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
     const [selectedUser, setSelectedUser] = useState<TeamMember | null>(null);
 
+    const [period, setPeriod] = useState<Period>('30d');
+    const [customRange, setCustomRange] = useState({
+        start: new Date(new Date().setDate(new Date().getDate() - 29)).toISOString().slice(0, 10),
+        end: new Date().toISOString().slice(0, 10),
+    });
+
     const activeCompanies = useMemo(() => 
         companies.filter(c => c.isActive).sort((a, b) => a.name.localeCompare(b.name)), 
     [companies]);
@@ -33,6 +39,43 @@ const MonitorSettingsScreen: React.FC = () => {
             .filter(tm => tm.companyId === selectedCompany.id && (tm.role === 'Vendedor' || tm.role === 'Gestor de Tráfego'))
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [teamMembers, selectedCompany]);
+
+    const interactionCountsByUser = useMemo(() => {
+        const counts: Record<string, number> = {};
+        if (!selectedCompany) return counts;
+
+        let userMessages = monitorChatHistory.filter(msg => usersOfSelectedCompany.some(u => u.id === msg.user_id));
+
+        if (period !== 'all') {
+            let startDate: Date;
+            let endDate = new Date();
+            endDate.setHours(23, 59, 59, 999);
+
+            if (period === '7d') {
+                startDate = new Date();
+                startDate.setDate(endDate.getDate() - 6);
+                startDate.setHours(0, 0, 0, 0);
+            } else if (period === '30d') {
+                startDate = new Date();
+                startDate.setDate(endDate.getDate() - 29);
+                startDate.setHours(0, 0, 0, 0);
+            } else { // custom
+                if (!customRange.start || !customRange.end) return counts;
+                startDate = new Date(customRange.start + 'T00:00:00');
+                endDate = new Date(customRange.end + 'T23:59:59');
+            }
+             userMessages = userMessages.filter(msg => {
+                const msgDate = new Date(msg.created_at);
+                return msgDate >= startDate && msgDate <= endDate;
+            });
+        }
+        
+        usersOfSelectedCompany.forEach(user => {
+            counts[user.id] = userMessages.filter(msg => msg.user_id === user.id).length;
+        });
+
+        return counts;
+    }, [period, customRange, selectedCompany, usersOfSelectedCompany, monitorChatHistory]);
 
 
     useEffect(() => {
@@ -87,31 +130,84 @@ const MonitorSettingsScreen: React.FC = () => {
                     <>
                         <h3 className="text-lg font-semibold text-dark-text mb-4">Selecione uma empresa</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {activeCompanies.map(company => (
-                                <CompanyInfoCard
-                                    key={company.id}
-                                    company={company}
-                                    vehicleCount={vehicles.filter(v => v.companyId === company.id && v.status === 'available').length}
-                                    onClick={() => handleCompanySelect(company)}
-                                />
-                            ))}
+                            {activeCompanies.map(company => {
+                                const companyUserIds = teamMembers.filter(tm => tm.companyId === company.id).map(tm => tm.id);
+                                const interactionCount = monitorChatHistory.filter(msg => companyUserIds.includes(msg.user_id)).length;
+
+                                return (
+                                     <Card
+                                        key={company.id}
+                                        className="p-5 transition-transform duration-300 hover:scale-105 hover:border-dark-primary cursor-pointer animate-stagger opacity-0"
+                                        style={{ animationFillMode: 'forwards' }}
+                                        onClick={() => handleCompanySelect(company)}
+                                    >
+                                        <div className="flex items-center gap-4 mb-4">
+                                            <img src={company.logoUrl} alt={company.name} className="w-14 h-14 rounded-full" />
+                                            <div>
+                                                <h3 className="text-lg font-bold text-dark-text">{company.name}</h3>
+                                                <span className={`px-3 py-1 text-xs font-semibold rounded-full ${company.isActive ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                                                    {company.isActive ? 'Ativa' : 'Pendente'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="pt-4 border-t border-dark-border flex justify-between items-center text-sm">
+                                            <div className="flex items-center gap-2 text-dark-secondary">
+                                                <MonitorIcon className="w-5 h-5" />
+                                                <span>Interações com Monitor</span>
+                                            </div>
+                                            <span className="font-bold text-dark-text text-lg">{interactionCount}</span>
+                                        </div>
+                                    </Card>
+                                );
+                            })}
                             {activeCompanies.length === 0 && <p className="text-dark-secondary col-span-full text-center py-8">Nenhuma empresa ativa encontrada.</p>}
                         </div>
                     </>
                 );
             case 'user_selection':
                 if (!selectedCompany) return null;
+                 const periodOptions: { id: Period; label: string }[] = [
+                    { id: '7d', label: 'Últimos 7 dias' },
+                    { id: '30d', label: 'Últimos 30 dias' },
+                    { id: 'all', label: 'Todo o Período' },
+                    { id: 'custom', label: 'Personalizado' },
+                ];
+
                 return (
                     <>
                         <button onClick={handleBackToCompanies} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-primary mb-4">&larr; Voltar para Empresas</button>
                         <h3 className="text-lg font-semibold text-dark-text mb-4">Selecione um usuário de <span className="text-dark-primary">{selectedCompany.name}</span></h3>
+                        
+                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+                            <div className="bg-dark-background p-1 rounded-lg border border-dark-border flex flex-wrap items-center gap-1">
+                                {periodOptions.map(opt => (
+                                    <button key={opt.id} onClick={() => setPeriod(opt.id)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${period === opt.id ? 'bg-dark-primary text-dark-background' : 'text-dark-secondary hover:bg-dark-border/50'}`}>
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                            {period === 'custom' && (
+                                <div className="flex items-center gap-2 animate-fade-in bg-dark-background p-1 rounded-lg border border-dark-border">
+                                    <input type="date" value={customRange.start} onChange={(e) => setCustomRange(r => ({...r, start: e.target.value}))} className="filter-date-input"/>
+                                    <span className="text-dark-secondary text-xs">até</span>
+                                    <input type="date" value={customRange.end} onChange={(e) => setCustomRange(r => ({...r, end: e.target.value}))} className="filter-date-input"/>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {usersOfSelectedCompany.map(user => (
-                                <Card key={user.id} onClick={() => handleUserSelect(user)} className="p-4 flex items-center gap-4 cursor-pointer hover:border-dark-primary transition-colors animate-fade-in">
-                                    <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
-                                    <div>
-                                        <p className="font-bold text-dark-text">{user.name}</p>
-                                        <p className="text-xs text-dark-secondary">{user.role}</p>
+                                <Card key={user.id} onClick={() => handleUserSelect(user)} className="p-4 flex flex-col gap-3 cursor-pointer hover:border-dark-primary transition-colors animate-fade-in">
+                                    <div className="flex items-center gap-4 w-full">
+                                        <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
+                                        <div className="flex-1">
+                                            <p className="font-bold text-dark-text">{user.name}</p>
+                                            <p className="text-xs text-dark-secondary">{user.role}</p>
+                                        </div>
+                                    </div>
+                                    <div className="w-full pt-3 border-t border-dark-border flex justify-between items-center text-sm">
+                                        <span className="text-dark-secondary font-medium">Interações no período:</span>
+                                        <span className="font-bold text-lg text-dark-primary">{interactionCountsByUser[user.id] || 0}</span>
                                     </div>
                                 </Card>
                             ))}
@@ -213,7 +309,10 @@ const MonitorSettingsScreen: React.FC = () => {
                 <h2 className="text-xl font-bold text-dark-text mb-4">Visualizador de Monitor por Usuário</h2>
                 {renderViewerContent()}
             </Card>
-
+            <style>{`
+                .filter-date-input { background-color: #10182C; border: 1px solid #243049; color: #E0E0E0; padding: 0.375rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 500; color-scheme: dark; }
+                .filter-date-input::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
+            `}</style>
         </div>
     );
 };

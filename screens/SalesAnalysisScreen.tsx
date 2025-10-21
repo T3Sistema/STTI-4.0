@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Company, TeamMember, Vehicle } from '../types';
 import { formatCurrency } from '../utils/calculationUtils';
@@ -287,7 +288,7 @@ const SalesAnalysisScreen: React.FC<SalesAnalysisScreenProps> = ({ onBack, compa
 
         const modelStats = filteredVehicles.reduce((acc, v) => {
             const salePrice = (v.announcedPrice || 0) - (v.discount || 0);
-            // FIX: Add an initial value of 0 to the reduce function to prevent errors on empty maintenance arrays.
+            // @-fix: Add an initial value of 0 to the reduce function to prevent errors on empty maintenance arrays.
             const totalCosts = (v.purchasePrice || 0) + (v.maintenance || []).reduce((sum, m) => sum + m.cost, 0);
             const profit = salePrice - totalCosts;
             const fullName = `${v.brand} ${v.model}`;

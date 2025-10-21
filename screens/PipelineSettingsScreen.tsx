@@ -239,16 +239,16 @@ const PipelineSettingsScreen: React.FC<PipelineSettingsScreenProps> = ({ company
         setOverdueLockSettings(prev => ({...prev, lock_after_time: e.target.value}));
     };
 
-    // @-fix: The 'prev' state variable is only accessible within the updater function of setState. Moved the logic inside to resolve the "Cannot find name 'prev'" error.
+    // FIX: The 'prev' state variable is only accessible within the updater function of setState. Moved the logic inside to resolve the "Cannot find name 'prev'" error.
     const handleLockApplyToChange = (mode: 'all' | 'specific') => {
-        if (mode === 'all') {
-            setOverdueLockSettings(prev => ({ ...prev, apply_to: 'all' }));
-        } else {
-            setOverdueLockSettings(prev => {
+        setOverdueLockSettings(prev => {
+            if (mode === 'all') {
+                return { ...prev, apply_to: 'all' };
+            } else {
                 const currentSelection = Array.isArray(prev.apply_to) ? prev.apply_to : [];
                 return { ...prev, apply_to: currentSelection };
-            });
-        }
+            }
+        });
     };
 
     const handleSalespersonSelectionChange = (id: string) => {

@@ -5,7 +5,11 @@ const WebhooksTab: React.FC = () => {
     const { getN8nWebhook, updateN8nWebhook } = useData();
     const [webhookUrl, setWebhookUrl] = useState('');
     const [appBaseUrl, setAppBaseUrl] = useState('');
-    const [reportWebhookUrl, setReportWebhookUrl] = useState(''); // Novo estado
+    const [reportWebhookUrl, setReportWebhookUrl] = useState('');
+    const [createInstanceWebhookUrl, setCreateInstanceWebhookUrl] = useState('');
+    const [refreshQrCodeWebhookUrl, setRefreshQrCodeWebhookUrl] = useState('');
+    const [checkInstanceWebhookUrl, setCheckInstanceWebhookUrl] = useState('');
+    const [disconnectInstanceWebhookUrl, setDisconnectInstanceWebhookUrl] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -14,14 +18,30 @@ const WebhooksTab: React.FC = () => {
         const fetchUrls = async () => {
             setIsLoading(true);
             try {
-                const [webhook, base, reportWebhook] = await Promise.all([
+                const [
+                    webhook,
+                    base,
+                    reportWebhook,
+                    createInstanceWebhook,
+                    refreshQrWebhook,
+                    checkInstanceWebhook,
+                    disconnectInstanceWebhook
+                ] = await Promise.all([
                     getN8nWebhook('password_reset'),
                     getN8nWebhook('app_base_url'),
-                    getN8nWebhook('RELATORIO_DIARIO_PROSPECCAO'), // Novo webhook
+                    getN8nWebhook('RELATORIO_DIARIO_PROSPECCAO'),
+                    getN8nWebhook('CREATE_WHATSAPP_INSTANCE'),
+                    getN8nWebhook('REFRESH_WHATSAPP_INSTANCE_QRCODE'),
+                    getN8nWebhook('CHECK_WHATSAPP_INSTANCE_STATUS'),
+                    getN8nWebhook('DISCONNECT_WHATSAPP_INSTANCE'),
                 ]);
                 setWebhookUrl(webhook || '');
                 setAppBaseUrl(base || '');
-                setReportWebhookUrl(reportWebhook || ''); // Seta o novo estado
+                setReportWebhookUrl(reportWebhook || '');
+                setCreateInstanceWebhookUrl(createInstanceWebhook || '');
+                setRefreshQrCodeWebhookUrl(refreshQrWebhook || '');
+                setCheckInstanceWebhookUrl(checkInstanceWebhook || '');
+                setDisconnectInstanceWebhookUrl(disconnectInstanceWebhook || '');
             } catch (err) {
                 setError('Falha ao carregar configurações.');
             } finally {
@@ -40,7 +60,11 @@ const WebhooksTab: React.FC = () => {
             await Promise.all([
                 updateN8nWebhook('password_reset', webhookUrl),
                 updateN8nWebhook('app_base_url', appBaseUrl),
-                updateN8nWebhook('RELATORIO_DIARIO_PROSPECCAO', reportWebhookUrl), // Salva o novo webhook
+                updateN8nWebhook('RELATORIO_DIARIO_PROSPECCAO', reportWebhookUrl),
+                updateN8nWebhook('CREATE_WHATSAPP_INSTANCE', createInstanceWebhookUrl),
+                updateN8nWebhook('REFRESH_WHATSAPP_INSTANCE_QRCODE', refreshQrCodeWebhookUrl),
+                updateN8nWebhook('CHECK_WHATSAPP_INSTANCE_STATUS', checkInstanceWebhookUrl),
+                updateN8nWebhook('DISCONNECT_WHATSAPP_INSTANCE', disconnectInstanceWebhookUrl),
             ]);
             setSuccess('Configurações salvas com sucesso!');
         } catch (err: any) {
@@ -98,6 +122,74 @@ const WebhooksTab: React.FC = () => {
                     required
                     className="input-style"
                     placeholder="https://seu.n8n.cloud/webhook/relatorio-diario"
+                    disabled={isLoading}
+                />
+            </div>
+
+            <div>
+                <label htmlFor="createInstanceWebhookUrl" className="label-style">URL do Webhook de Criação de Instância WhatsApp (n8n)</label>
+                <p className="text-xs text-dark-secondary/70 mb-2 -mt-1">
+                    Endpoint que será chamado para criar uma nova instância do WhatsApp na Evolution API.
+                </p>
+                <input
+                    type="url"
+                    id="createInstanceWebhookUrl"
+                    value={createInstanceWebhookUrl}
+                    onChange={e => setCreateInstanceWebhookUrl(e.target.value)}
+                    required
+                    className="input-style"
+                    placeholder="https://seu.n8n.cloud/webhook/criar-instancia"
+                    disabled={isLoading}
+                />
+            </div>
+            
+            <div>
+                <label htmlFor="refreshQrCodeWebhookUrl" className="label-style">URL do Webhook de Atualização do QR Code (n8n)</label>
+                <p className="text-xs text-dark-secondary/70 mb-2 -mt-1">
+                    Endpoint para solicitar um novo QR Code quando o anterior expirar.
+                </p>
+                <input
+                    type="url"
+                    id="refreshQrCodeWebhookUrl"
+                    value={refreshQrCodeWebhookUrl}
+                    onChange={e => setRefreshQrCodeWebhookUrl(e.target.value)}
+                    required
+                    className="input-style"
+                    placeholder="https://seu.n8n.cloud/webhook/atualizar-qrcode"
+                    disabled={isLoading}
+                />
+            </div>
+
+            <div>
+                <label htmlFor="checkInstanceWebhookUrl" className="label-style">Webhook de Verificação de Status da Instância (n8n)</label>
+                <p className="text-xs text-dark-secondary/70 mb-2 -mt-1">
+                    Endpoint que verifica se a instância do WhatsApp de um vendedor está conectada.
+                </p>
+                <input
+                    type="url"
+                    id="checkInstanceWebhookUrl"
+                    value={checkInstanceWebhookUrl}
+                    onChange={e => setCheckInstanceWebhookUrl(e.target.value)}
+                    required
+                    className="input-style"
+                    placeholder="https://seu.n8n.cloud/webhook/verificar-status"
+                    disabled={isLoading}
+                />
+            </div>
+            
+            <div>
+                <label htmlFor="disconnectInstanceWebhookUrl" className="label-style">Webhook para Desconectar Instância (n8n)</label>
+                <p className="text-xs text-dark-secondary/70 mb-2 -mt-1">
+                    Endpoint que remove/desconecta uma instância do WhatsApp na Evolution API.
+                </p>
+                <input
+                    type="url"
+                    id="disconnectInstanceWebhookUrl"
+                    value={disconnectInstanceWebhookUrl}
+                    onChange={e => setDisconnectInstanceWebhookUrl(e.target.value)}
+                    required
+                    className="input-style"
+                    placeholder="https://seu.n8n.cloud/webhook/desconectar-instancia"
                     disabled={isLoading}
                 />
             </div>

@@ -14,8 +14,9 @@ import {
     PlusIcon, BullseyeIcon, ChatBubbleOvalLeftEllipsisIcon, CheckCircleIcon, XIcon,
     ClockIcon, PhoneIcon, ClipboardIcon, CalendarIcon, XCircleIcon, CheckIcon, ArrowRightIcon,
     UserCircleIcon, LockIcon, UploadIcon, SearchIcon, ArrowPathIcon, SwitchHorizontalIcon,
-    PencilIcon, ChartBarIcon, ToolboxIcon,
+    PencilIcon, ChartBarIcon, ToolboxIcon, CrosshairIcon,
 } from '../components/icons';
+import DisparadorAutomaticoScreen from './DisparadorAutomaticoScreen';
 
 interface HunterScreenProps {
     user: TeamMember;
@@ -116,7 +117,17 @@ const HunterLeadHistoryModal: React.FC<{
     const events = useMemo(() => generateHunterLeadEvents(lead, stages), [lead, stages]);
     
     const currentStage = stages.find(s => s.id === lead.stage_id);
-    const nextStage = stages.find(s => s.stageOrder > (currentStage?.stageOrder || 0) && !s.isFixed);
+    
+    const actionableStages = useMemo(() => {
+        if (!currentStage) return [];
+        return stages
+            .filter(s => 
+                s.isEnabled &&
+                s.stageOrder > currentStage.stageOrder &&
+                s.name !== 'Remanejados' && s.name !== 'Atendimentos Transferidos'
+            )
+            .sort((a, b) => a.stageOrder - b.stageOrder);
+    }, [stages, currentStage]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -282,24 +293,36 @@ const HunterLeadHistoryModal: React.FC<{
                     <div className="pt-4 border-t border-dark-border">
                         <h4 className="text-center text-sm font-bold text-dark-secondary mb-3">Próximas Ações</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                             {!showTransfer ? (
+                            {!showTransfer ? (
                                 <>
-                                    {nextStage && (
-                                        <button onClick={() => handlePerformAction(nextStage.name)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 sm:col-span-2">
-                                            <ArrowRightIcon className="w-5 h-5"/> Mover para {nextStage.name}
-                                        </button>
-                                    )}
-                                    <button onClick={handleOpenAppointmentModal} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
-                                        <CalendarIcon className="w-5 h-5"/> Agendar
-                                    </button>
-                                    <button onClick={() => handlePerformAction('Finalizados', 'convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-green-500/20 text-green-300 hover:bg-green-500/30">
-                                        <CheckCircleIcon className="w-5 h-5"/> Lead convertido
-                                    </button>
+                                    {actionableStages.map(stage => {
+                                        if (stage.name === 'Finalizados') {
+                                            return (
+                                                <React.Fragment key="finalizados-fragment">
+                                                    <button onClick={() => handlePerformAction('Finalizados', 'convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-green-500/20 text-green-300 hover:bg-green-500/30">
+                                                        <CheckCircleIcon className="w-5 h-5"/> Lead convertido
+                                                    </button>
+                                                    <button onClick={() => handlePerformAction('Finalizados', 'nao_convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-red-500/20 text-red-300 hover:bg-red-500/30">
+                                                        <XCircleIcon className="w-5 h-5"/> Lead não convertido
+                                                    </button>
+                                                </React.Fragment>
+                                            );
+                                        }
+                                        if (stage.name === 'Agendado') {
+                                            return (
+                                                <button key={stage.id} onClick={handleOpenAppointmentModal} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+                                                    <CalendarIcon className="w-5 h-5"/> Agendar
+                                                </button>
+                                            );
+                                        }
+                                        return (
+                                            <button key={stage.id} onClick={() => handlePerformAction(stage.name)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-purple-500/20 text-purple-300 hover:bg-purple-500/30">
+                                                <ArrowRightIcon className="w-5 h-5"/> Mover para {stage.name}
+                                            </button>
+                                        );
+                                    })}
                                     <button onClick={() => setShowTransfer(true)} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30">
                                         <SwitchHorizontalIcon className="w-5 h-5"/> Transferir
-                                    </button>
-                                    <button onClick={() => handlePerformAction('Finalizados', 'nao_convertido')} disabled={isSubmitting || !feedbackText.trim()} className="action-btn bg-red-500/20 text-red-300 hover:bg-red-500/30">
-                                        <XCircleIcon className="w-5 h-5"/> Lead não convertido
                                     </button>
                                 </>
                             ) : (
@@ -878,7 +901,7 @@ const HunterScreen: React.FC<HunterScreenProps> = ({ user, activeCompany, onBack
                         </button>
                         <button
                             onClick={() => setAddLeadModalOpen(true)}
-                            className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm"
+                            className="flex items-center gap-2 bg-dark-card border border-dark-border px-4 py-2 rounded-lg hover:border-dark-primary transition-colors font-bold text-sm"
                         >
                             <PlusIcon className="w-4 h-4" />
                             <span>Cadastrar Lead</span>

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useRef, useEffect, ChangeEvent } from 'react';
 import { useData } from '../hooks/useMockData';
 import { Vehicle, TeamMember, Company, ProspectAILead, HunterLead } from '../types';
@@ -39,10 +41,11 @@ import ToolboxViewer from '../components/ToolboxViewer';
 import { CrosshairIcon } from '../components/icons/CrosshairIcon';
 import HunterScreen from './HunterScreen';
 import { LiveIcon } from '../components/icons/LiveIcon';
-import LiveAgentConfigScreen from './LiveAgentConfigScreen';
 import { DocumentTextIcon, DownloadIcon, UploadIcon } from '../components/icons';
 import * as XLSX from 'xlsx';
 import RelatoriosScreen from './RelatoriosScreen';
+// @-fix: Import 'LiveAgentConfigScreen' to resolve the "Cannot find name" error.
+import LiveAgentConfigScreen from './LiveAgentConfigScreen';
 
 interface DashboardScreenProps {
   onLogout: () => void;
@@ -99,7 +102,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     const isProspectOnly = features.includes('prospectai') && !features.includes('estoque_inteligente');
 
     // State
-    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings' | 'live_agent_config' | 'relatorios'>(isProspectOnly ? 'prospectai' : 'dashboard');
+    const [view, setView] = useState<'dashboard' | 'sales_analysis' | 'prospect_analysis' | 'lembrai' | 'prospectai' | 'prospectai_settings' | 'pipeline_settings' | 'hunter_settings' | 'goal_settings' | 'business_hours_settings' | 'live_agent_config' | 'relatorios' | 'prospect_automations'>(isProspectOnly ? 'prospectai' : 'dashboard');
     const [stockView, setStockView] = useState<'available' | 'sold'>('available');
     const [isCompanyFormOpen, setCompanyFormOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
@@ -365,12 +368,39 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
     };
 
     if (!activeCompany) return <div>Carregando...</div>;
+
+    const ProspectAutomationsScreen = () => (
+        <div className="animate-fade-in">
+            <button onClick={() => setView('prospectai')} className="flex items-center gap-2 text-sm text-dark-secondary hover:text-dark-text mb-6">
+                &larr; Voltar para Visão Geral
+            </button>
+            <h1 className="text-3xl font-bold text-dark-text mb-2">Prazos e Automações (Farm)</h1>
+            <p className="text-dark-secondary mb-8">Selecione um vendedor para configurar os prazos de atendimento e as regras de remanejamento automático para os leads que ele recebe.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {companySalespeople.map(salesperson => (
+                    <Card key={salesperson.id} onClick={() => { setSelectedSalespersonForSettings(salesperson); setView('prospectai_settings'); }}
+                        className="p-6 rounded-2xl text-center cursor-pointer transition-transform duration-300 hover:scale-105 hover:border-dark-primary bg-dark-card-active border-transparent border-2">
+                        <img src={salesperson.avatarUrl} alt={salesperson.name} className="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-dark-border"/>
+                        <h4 className="font-bold text-lg text-dark-text">{salesperson.name}</h4>
+                        <p className="text-sm text-dark-secondary">{salesperson.role}</p>
+                    </Card>
+                ))}
+                {companySalespeople.length === 0 && (
+                    <div className="col-span-full text-center py-16 bg-dark-card/50 rounded-2xl border border-dark-border">
+                        <h3 className="text-xl font-bold text-dark-text">Nenhum Vendedor Encontrado</h3>
+                        <p className="text-dark-secondary mt-2">Cadastre vendedores na seção "Gerenciar Equipe" para configurar suas automações.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
     
     // Sub-screen rendering
     if (view === 'sales_analysis') return <SalesAnalysisScreen company={activeCompany} salespeople={companySalespeople} vehicles={vehiclesSold} updateCompany={updateCompany} updateSalesperson={() => {}} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
     if (view === 'lembrai') return <LembrAIScreen onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} companyId={companyId} />;
     if (view === 'prospect_analysis') return <CompanyProspectPerformanceScreen company={activeCompany} salespeople={companySalespeople} prospectaiLeads={prospectaiLeads.filter(l => l.companyId === companyId)} hunterLeads={hunterLeads.filter(l => l.companyId === companyId)} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
-    if (view === 'prospectai_settings' && selectedSalespersonForSettings) return <ProspectAISettingsScreen salesperson={selectedSalespersonForSettings} onBack={() => { setView(isProspectOnly ? 'prospectai' : 'dashboard'); setSelectedSalespersonForSettings(null); }} />;
+    if (view === 'prospect_automations') return <ProspectAutomationsScreen />;
+    if (view === 'prospectai_settings' && selectedSalespersonForSettings) return <ProspectAISettingsScreen salesperson={selectedSalespersonForSettings} onBack={() => { setView('prospect_automations'); setSelectedSalespersonForSettings(null); }} />;
     if (view === 'pipeline_settings') return <PipelineSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
     if (view === 'hunter_settings') return <HunterSettingsScreen salespeople={teamMembers.filter(tm => tm.companyId === companyId)} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} onUpdateSalesperson={updateTeamMember} />;
     if (view === 'goal_settings') return <GoalSettingsScreen companyId={companyId} onBack={() => setView(isProspectOnly ? 'prospectai' : 'dashboard')} />;
@@ -438,6 +468,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                                 {isProspectSettingsOpen && (
                                     <div className="absolute top-full right-0 mt-2 w-60 bg-dark-card border border-dark-border rounded-lg shadow-lg z-10 p-2">
                                         <a onClick={() => { setView('pipeline_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Editor de Pipeline (Farm)</a>
+                                        <a onClick={() => { setView('prospect_automations'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Prazos e Automações</a>
                                         <a onClick={() => { setView('hunter_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Modo Hunter</a>
                                         <a onClick={() => { setView('goal_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Metas</a>
                                         <a onClick={() => { setView('business_hours_settings'); setIsProspectSettingsOpen(false); }} className={dropdownItemStyle}>Horário de Funcionamento</a>
@@ -496,7 +527,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onLogout, companyId }
                 isOverdueFilterActive={isOverdueFilterActive}
                 onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                 onAdvancedFilterChange={setFilters}
-                // FIX: Use Array.isArray() as a type guard before accessing `val.length` on `unknown`.
                 activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
                 selectedSalespersonId={selectedSalespersonId}
                 onSalespersonSelect={setSelectedSalespersonId}

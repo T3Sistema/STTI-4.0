@@ -32,6 +32,7 @@ const availableFeatures: { key: Feature; label: string; description: string }[] 
     { key: 'estoque_inteligente', label: 'Estoque Inteligente', description: 'Gestão de veículos, finanças, metas e análises de vendas.' },
     { key: 'prospectai', label: 'ProspectAI', description: 'Pipeline de prospecção e gestão de leads para vendedores.' },
     { key: 'marketing', label: 'Módulo de Marketing', description: 'Ferramentas para gestores de tráfego, gestão de anúncios e materiais.' },
+    { key: 'disparador_automatico', label: 'Disparador Automático', description: 'Permite o disparo em massa de mensagens para leads no modo Hunter.' },
 ];
 
 

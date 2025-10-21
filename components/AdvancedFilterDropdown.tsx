@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { TeamMember, Vehicle } from '../types';
 import { AdvancedFilters } from './FilterBar';
@@ -48,16 +47,14 @@ const AdvancedFilterDropdown: React.FC<AdvancedFilterDropdownProps> = ({ salespe
         modelNames: [],
     });
 
+    // FIX: Cast `prev[category]` to `string[]`. This resolves a type inference issue where TypeScript
+    // could not guarantee that `prev[category]` was an array, causing an error on the `.includes` method.
     const handleCheckboxChange = (category: keyof AdvancedFilters, value: string) => {
         setFilters(prev => {
-            const currentValues = prev[category];
-            
-            // @-fix: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-            // Ensure `currentValues` is treated as a string array before using array methods.
-            const stringArray = currentValues as string[];
-            const newValues = stringArray.includes(value)
-                ? stringArray.filter(v => v !== value)
-                : [...stringArray, value];
+            const currentValues = prev[category] as string[];
+            const newValues = currentValues.includes(value)
+                ? currentValues.filter(v => v !== value)
+                : [...currentValues, value];
             return { ...prev, [category]: newValues };
         });
     };

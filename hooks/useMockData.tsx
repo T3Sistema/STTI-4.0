@@ -66,6 +66,7 @@ interface DataContextType {
     transferProspectLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => Promise<void>;
     addHunterLeadAction: (lead: HunterLead, feedbackText: string, images: string[], targetStageId: string, outcome?: 'convertido' | 'nao_convertido' | null, appointment_at?: string) => Promise<void>;
     transferHunterLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string, feedback: { text: string, images: string[] }) => Promise<void>;
+    reassignHunterLead: (leadId: string, newSalespersonId: string, originalSalespersonId: string | null) => Promise<void>;
     addGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'id' | 'companyIds' | 'createdAt' | 'isActive'>, password: string) => Promise<void>;
     updateGrupoEmpresarial: (grupo: Omit<GrupoEmpresarial, 'companyIds'>) => Promise<void>;
     updateGrupoCompanies: (groupId: string, companyIds: string[]) => Promise<void>;
@@ -341,7 +342,8 @@ const defaultPipelineStages: PipelineStage[] = [
   { id: crypto.randomUUID(), name: 'Primeira Tentativa', stageOrder: 1, isFixed: false, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Segunda Tentativa', stageOrder: 2, isFixed: false, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Terceira Tentativa', stageOrder: 3, isFixed: false, isEnabled: true },
-  { id: crypto.randomUUID(), name: 'Agendado', stageOrder: 4, isFixed: false, isEnabled: true },
+  { id: crypto.randomUUID(), name: 'Em Negociação', stageOrder: 4, isFixed: false, isEnabled: true },
+  { id: crypto.randomUUID(), name: 'Agendado', stageOrder: 5, isFixed: false, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Finalizados', stageOrder: 99, isFixed: true, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Remanejados', stageOrder: 100, isFixed: true, isEnabled: true },
   { id: crypto.randomUUID(), name: 'Atendimentos Transferidos', stageOrder: 101, isFixed: true, isEnabled: true },
@@ -1915,6 +1917,53 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
     
+    const reassignHunterLead = async (leadId: string, newSalespersonId: string, originalSalespersonId: string | null) => {
+        const leadToUpdate = hunterLeads.find(l => l.id === leadId);
+        if (!leadToUpdate) return;
+        
+        const company = companies.find(c => c.id === leadToUpdate.companyId);
+        if (!company) {
+            console.error("Could not find company for lead.");
+            return;
+        }
+
+        const novoLeadStage = company.pipeline_stages.find(s => s.name === 'Novos Leads');
+        if (!novoLeadStage) {
+            console.error("Could not find 'Novos Leads' stage for company.");
+            return;
+        }
+
+        const newDetails = {
+            ...(leadToUpdate.details || {}),
+            reassigned_from: originalSalespersonId,
+            reassigned_to: newSalespersonId,
+            reassigned_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase
+            .from('hunter_leads')
+            .update({ 
+                salesperson_id: newSalespersonId,
+                stage_id: novoLeadStage.id,
+                details: newDetails,
+                // Reset lead state
+                prospected_at: null,
+                last_activity: new Date().toISOString(), // update last activity
+                feedback: [],
+                outcome: null,
+                appointment_at: null,
+            })
+            .eq('id', leadId)
+            .select()
+            .single();
+
+        if (error) { console.error("Error reassigning hunter lead:", error); return; }
+        
+        if (data) {
+            setHunterLeads(prev => prev.map(l => l.id === leadId ? mapHunterLeadFromDB(data) : l));
+        }
+    };
+
     const updateMonitorSettings = async (settings: Omit<MonitorSettings, 'id'>) => {
         if (!monitorSettings) return;
         const { data, error } = await supabase.from('monitor_settings').update(settings).eq('id', monitorSettings.id).select().single();
@@ -2038,6 +2087,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         transferProspectLead,
         addHunterLeadAction,
         transferHunterLead,
+        reassignHunterLead,
         addGrupoEmpresarial,
         updateGrupoEmpresarial,
         updateGrupoCompanies,

@@ -57,6 +57,7 @@
               'modal-fade-in': 'modalFadeIn 0.3s ease-in-out',
               'stagger': 'stagger 0.5s ease-in-out forwards',
               'pulse-border': 'pulseBorder 2s infinite',
+              'aura-pulse': 'auraPulse 2s infinite',
             },
             keyframes: {
               fadeIn: {
@@ -74,6 +75,14 @@
               pulseBorder: {
                 '0%, 100%': { borderColor: 'rgba(255, 193, 7, 1)' },
                 '50%': { borderColor: 'rgba(255, 193, 7, 0.4)' },
+              },
+              auraPulse: {
+                '0%, 100%': { 
+                  boxShadow: '0 0 15px rgba(0, 209, 255, 0.3), 0 0 5px rgba(0, 209, 255, 0.2) inset' 
+                },
+                '50%': { 
+                  boxShadow: '0 0 25px rgba(0, 209, 255, 0.6), 0 0 10px rgba(0, 209, 255, 0.4) inset'
+                },
               },
             }
           }

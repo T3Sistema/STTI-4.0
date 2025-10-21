@@ -20,6 +20,8 @@ import ChangePasswordForm from '../components/forms/ChangePasswordForm';
 import ProspectAIScreen from './ProspectAIScreen';
 import HunterScreen from './HunterScreen';
 import ToolboxViewer from '../components/ToolboxViewer';
+import DisparadorAutomaticoScreen from './DisparadorAutomaticoScreen';
+import { CrosshairIcon } from '../components/icons';
 
 
 interface SalespersonDashboardScreenProps {
@@ -44,6 +46,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
     const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
     const [isChangePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
     const [isToolboxOpen, setIsToolboxOpen] = useState(false);
+    const [showDisparador, setShowDisparador] = useState(false);
     
     // Filter States
     const [filters, setFilters] = useState<AdvancedFilters>({
@@ -218,6 +221,10 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
     if (!activeCompany) {
         return <div>Carregando dados...</div>;
     }
+
+    if (showDisparador) {
+        return <DisparadorAutomaticoScreen user={user} onBack={() => setShowDisparador(false)} />;
+    }
     
     if (view === 'performance' && features.includes('estoque_inteligente')) {
         const allSoldVehicles = vehicles.filter(v => v.status === 'sold' && v.companyId === user.companyId);
@@ -305,15 +312,26 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                         </button>
                     )}
                 </div>
-                {features.includes('estoque_inteligente') && (
-                     <button
-                        onClick={() => setView('performance')}
-                        className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm"
-                    >
-                        <ChartBarIcon className="w-4 h-4" />
-                        Minha Performance
-                    </button>
-                )}
+                <div className="flex items-center gap-3">
+                    {features.includes('estoque_inteligente') && (
+                        <button
+                            onClick={() => setView('performance')}
+                            className="flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-bold text-sm"
+                        >
+                            <ChartBarIcon className="w-4 h-4" />
+                            Minha Performance
+                        </button>
+                    )}
+                    {features.includes('disparador_automatico') && user.isHunterModeActive && (
+                        <button
+                            onClick={() => setShowDisparador(true)}
+                            className="relative flex items-center gap-2 bg-dark-primary text-dark-background px-4 py-2 rounded-lg font-bold text-sm animate-aura-pulse shadow-lg"
+                        >
+                            <CrosshairIcon className="w-4 h-4" />
+                            <span>Disparador Automático</span>
+                        </button>
+                    )}
+                </div>
             </div>
             
             {currentSubView === 'hunter' && features.includes('prospectai') && user.isHunterModeActive
@@ -327,7 +345,7 @@ const SalespersonDashboardScreen: React.FC<SalespersonDashboardScreenProps> = ({
                     onOverdueFilterToggle={() => setOverdueFilterActive(prev => !prev)}
                     onAdvancedFilterChange={setFilters}
                     // FIX: Use Array.isArray(val) as a type guard before accessing `val.length` on `unknown`.
-                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val) => acc + (Array.isArray(val) ? val.length : 0), 0)}
+                    activeAdvancedFiltersCount={Object.values(filters).reduce((acc: number, val) => acc + (Array.isArray(val) ? (val as string[]).length : 0), 0)}
                     selectedSalespersonId={selectedSalespersonId}
                     onSalespersonSelect={setSelectedSalespersonId}
                     areFiltersDisabled={stockView === 'assigned'}

@@ -1,6 +1,6 @@
 import {supabase} from './utils/supabase';
 
-export type Feature = 'estoque_inteligente' | 'prospectai' | 'marketing';
+export type Feature = 'estoque_inteligente' | 'prospectai' | 'marketing' | 'disparador_automatico';
 
 export interface MaintenanceRecord {
   id: string;
@@ -357,5 +357,5 @@ export interface DailyReport {
 
 
 export type Theme = 'light' | 'dark';
-export type View = 'admin' | 'dashboard' | 'grupos' | 'monitor_settings' | 'relatorios';
+export type View = 'admin' | 'dashboard' | 'grupos' | 'monitor_settings' | 'relatorios' | 'prospect_automations';
 export type UserRole = 'admin' | 'company' | 'traffic_manager' | 'salesperson' | 'grupo_empresarial';
